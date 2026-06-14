@@ -220,6 +220,8 @@ async function fetchBatch(endpoint, onProgress) {
 async function getPurchaseInvoiceBatch(onProgress) { return fetchBatch('/api4/purchase-invoice-batch', onProgress); }
 async function getSalesInvoiceBatch(onProgress)    { return fetchBatch('/api4/sales-invoice-batch',    onProgress); }
 async function getInventoryItemBatch(onProgress)   { return fetchBatch('/api4/inventory-item-batch',   onProgress); }
+async function getCustomerBatch(onProgress)        { return fetchBatch('/api4/customer-batch',        onProgress); }
+async function getSupplierBatch(onProgress)        { return fetchBatch('/api4/supplier-batch',        onProgress); }
 
 /* ══════════════════════════════════
    i18n — English + Arabic
@@ -231,12 +233,14 @@ const I18N = {
     'btn.reload': '↺ Reload',
     'btn.retry': '↺ Retry',
     'status.idle': 'Press Load to fetch data from Manager',
-    'status.complete': '✓ {0} purchases · {1} sales · {2} items',
+    'status.complete': '✓ {0} purchases · {1} sales · {2} items · {3} customers · {4} suppliers',
     'status.page': '[{0}/{1}] {2} · {3} loaded (p{4})',
     'status.pageTotal': '[{0}/{1}] {2} · {3}/{4} (p{5})',
     'stage.purchases': 'purchase invoices',
     'stage.sales': 'sales invoices',
     'stage.inventory': 'inventory items',
+    'stage.customers': 'customers',
+    'stage.suppliers': 'suppliers',
     'err.title': 'Failed to load data',
     'err.hint': 'Make sure this is running inside Manager.io.',
     'err.timeout': 'Timeout — is this running inside Manager.io?',
@@ -341,12 +345,14 @@ const I18N = {
     'btn.reload': '↺ إعادة تحميل',
     'btn.retry': '↺ إعادة المحاولة',
     'status.idle': 'اضغط على "تحميل" لجلب البيانات من Manager',
-    'status.complete': '✓ {0} مشتريات · {1} مبيعات · {2} أصناف',
+    'status.complete': '✓ {0} مشتريات · {1} مبيعات · {2} أصناف · {3} عملاء · {4} موردين',
     'status.page': '[{0}/{1}] {2} · تم تحميل {3} (صفحة {4})',
     'status.pageTotal': '[{0}/{1}] {2} · {3}/{4} (صفحة {5})',
     'stage.purchases': 'فواتير الشراء',
     'stage.sales': 'فواتير المبيعات',
     'stage.inventory': 'أصناف المخزون',
+    'stage.customers': 'العملاء',
+    'stage.suppliers': 'الموردون',
     'err.title': 'فشل تحميل البيانات',
     'err.hint': 'تأكد من تشغيل هذا داخل Manager.io.',
     'err.timeout': 'انتهت المهلة — هل يعمل هذا داخل Manager.io؟',
@@ -558,9 +564,11 @@ async function loadAllRecords() {
   app.innerHTML = '';
 
   const stages = [
-    { name: 'purchases', labelKey: 'stage.purchases', fn: getPurchaseInvoiceBatch },
-    { name: 'sales',     labelKey: 'stage.sales',     fn: getSalesInvoiceBatch    },
-    { name: 'inventory', labelKey: 'stage.inventory', fn: getInventoryItemBatch   }
+    { name: 'purchases',    labelKey: 'stage.purchases', fn: getPurchaseInvoiceBatch },
+    { name: 'sales',        labelKey: 'stage.sales',     fn: getSalesInvoiceBatch    },
+    { name: 'inventory',    labelKey: 'stage.inventory', fn: getInventoryItemBatch   },
+    { name: 'customerList', labelKey: 'stage.customers', fn: getCustomerBatch        },
+    { name: 'supplierList', labelKey: 'stage.suppliers', fn: getSupplierBatch        }
   ];
 
   const result = {};
@@ -579,7 +587,13 @@ async function loadAllRecords() {
     }
 
     bar.style.width = '100%';
-    status.textContent = t('status.complete', fmtInt(result.purchases.length), fmtInt(result.sales.length), fmtInt(result.inventory.length));
+    status.textContent = t('status.complete',
+      fmtInt(result.purchases.length),
+      fmtInt(result.sales.length),
+      fmtInt(result.inventory.length),
+      fmtInt((result.customerList || []).length),
+      fmtInt((result.supplierList || []).length)
+    );
     btn.dataset.state = 'reload';
     btn.textContent = t('btn.reload');
     btn.disabled = false;
@@ -601,9 +615,11 @@ async function loadAllRecords() {
    aggregates needed for rendering.
 ══════════════════════════════════ */
 function processData(data) {
-  const purchases = data.purchases || [];
-  const sales     = data.sales     || [];
-  const inventory = data.inventory || [];
+  const purchases     = data.purchases     || [];
+  const sales         = data.sales         || [];
+  const inventory     = data.inventory     || [];
+  const customerList  = data.customerList  || [];
+  const supplierList  = data.supplierList  || [];
 
   /* Inventory lookup */
   const invMap = new Map();
@@ -611,6 +627,21 @@ function processData(data) {
     const key = rec?.key ?? rec?.id;
     const it  = rec?.item ?? rec;
     if (key) invMap.set(key, it || {});
+  });
+
+  /* Customer / supplier name lookups */
+  const partyName = (it) => it?.name || it?.nameWithCode || it?.text || it?.uniqueName || null;
+  const customerNames = new Map();
+  customerList.forEach(rec => {
+    const key = rec?.key ?? rec?.id;
+    const it  = rec?.item ?? rec;
+    if (key) customerNames.set(key, partyName(it));
+  });
+  const supplierNames = new Map();
+  supplierList.forEach(rec => {
+    const key = rec?.key ?? rec?.id;
+    const it  = rec?.item ?? rec;
+    if (key) supplierNames.set(key, partyName(it));
   });
 
   /* Per-item aggregates */
@@ -734,8 +765,9 @@ function processData(data) {
   });
 
   return {
-    purchases, sales, inventory,
-    invMap, stats, monthly, suppliers, customers, dow,
+    purchases, sales, inventory, customerList, supplierList,
+    invMap, customerNames, supplierNames,
+    stats, monthly, suppliers, customers, dow,
     totals: {
       sales: totalSales,
       purchases: totalPurchases,
@@ -758,7 +790,9 @@ function render(data) {
     return;
   }
 
-  const { invMap, stats, monthly, suppliers, customers, dow, totals } = ctx;
+  const { invMap, customerNames, supplierNames, stats, monthly, suppliers, customers, dow, totals } = ctx;
+  const customerLabel = uuid => customerNames.get(uuid) || (uuid ? (uuid.slice(0, 8) + '…') : '—');
+  const supplierLabel = uuid => supplierNames.get(uuid) || (uuid ? (uuid.slice(0, 8) + '…') : '—');
   const monthKeys = [...monthly.keys()].filter(k => k !== 'unknown').sort();
   const periodMonths = monthKeys.length || 1;
 
@@ -1028,7 +1062,7 @@ function render(data) {
                 ${customerArr.length === 0 ? `<tr><td colspan="3" class="muted" style="text-align:center;padding:24px">${esc(t('empty.noCustomers'))}</td></tr>` :
                   customerArr.slice(0, 30).map(c => `
                     <tr>
-                      <td><span class="truncate" title="${esc(c.uuid)}">${esc(c.uuid.slice(0, 8))}…</span></td>
+                      <td><span class="truncate" title="${esc(c.uuid)}">${esc(customerLabel(c.uuid))}</span></td>
                       <td class="num">${fmtNum(c.revenue)}</td>
                       <td class="num">${fmtInt(c.count)}</td>
                     </tr>
@@ -1046,7 +1080,7 @@ function render(data) {
                 ${supplierArr.length === 0 ? `<tr><td colspan="3" class="muted" style="text-align:center;padding:24px">${esc(t('empty.noSuppliers'))}</td></tr>` :
                   supplierArr.slice(0, 30).map(s => `
                     <tr>
-                      <td><span class="truncate" title="${esc(s.uuid)}">${esc(s.uuid.slice(0, 8))}…</span></td>
+                      <td><span class="truncate" title="${esc(s.uuid)}">${esc(supplierLabel(s.uuid))}</span></td>
                       <td class="num">${fmtNum(s.spend)}</td>
                       <td class="num">${fmtInt(s.count)}</td>
                     </tr>
@@ -1419,14 +1453,14 @@ function render(data) {
     mountChart('chart-customers', {
       type: 'bar',
       data: {
-        labels: top.map(c => c.uuid.slice(0, 8) + '…'),
+        labels: top.map(c => truncate(customerLabel(c.uuid), 28)),
         datasets: [{ label: t('chart.revenue'), data: top.map(c => c.revenue), backgroundColor: '#3fb950', borderRadius: 4 }]
       },
       options: {
         indexAxis: 'y', responsive: true, maintainAspectRatio: false,
         plugins: {
           legend: { display: false },
-          tooltip: { callbacks: { label: ctx => `${t('chart.revenue')}: ${fmtNum(ctx.parsed.x)}`, title: ctx => top[ctx[0].dataIndex].uuid } }
+          tooltip: { callbacks: { label: ctx => `${t('chart.revenue')}: ${fmtNum(ctx.parsed.x)}`, title: ctx => customerLabel(top[ctx[0].dataIndex].uuid) } }
         },
         scales: {
           x: { grid: { color: '#21262d' }, ticks: { callback: v => fmtInt(v) }, position: xPos() },
@@ -1442,14 +1476,14 @@ function render(data) {
     mountChart('chart-suppliers', {
       type: 'bar',
       data: {
-        labels: top.map(s => s.uuid.slice(0, 8) + '…'),
+        labels: top.map(s => truncate(supplierLabel(s.uuid), 28)),
         datasets: [{ label: t('chart.spend'), data: top.map(s => s.spend), backgroundColor: '#58a6ff', borderRadius: 4 }]
       },
       options: {
         indexAxis: 'y', responsive: true, maintainAspectRatio: false,
         plugins: {
           legend: { display: false },
-          tooltip: { callbacks: { label: ctx => `${t('chart.spend')}: ${fmtNum(ctx.parsed.x)}`, title: ctx => top[ctx[0].dataIndex].uuid } }
+          tooltip: { callbacks: { label: ctx => `${t('chart.spend')}: ${fmtNum(ctx.parsed.x)}`, title: ctx => supplierLabel(top[ctx[0].dataIndex].uuid) } }
         },
         scales: {
           x: { grid: { color: '#21262d' }, ticks: { callback: v => fmtInt(v) }, position: xPos() },
