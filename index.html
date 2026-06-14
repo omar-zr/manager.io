@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" dir="ltr">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -8,10 +8,11 @@
 <style>
   * { box-sizing:border-box; margin:0; padding:0; }
   body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Tahoma", "Noto Sans Arabic", "Arial", sans-serif;
     background:#0d1117; color:#e6edf3; min-height:100vh; padding:20px;
     font-size:14px; line-height:1.45;
   }
+  html[dir="rtl"] body { font-size:14.5px; }
 
   /* control bar */
   .ctrl-bar {
@@ -22,14 +23,32 @@
   .load-btn {
     padding:8px 20px; border:none; border-radius:7px; cursor:pointer;
     font-size:13px; font-weight:700; background:#58a6ff; color:#0d1117;
-    transition:opacity .15s, transform .1s;
+    transition:opacity .15s, transform .1s; font-family:inherit;
   }
   .load-btn:hover:not(:disabled) { opacity:.9; }
   .load-btn:active:not(:disabled) { transform:scale(.97); }
   .load-btn:disabled { opacity:.45; cursor:not-allowed; }
   .prog-wrap { flex:1; min-width:140px; height:5px; background:#30363d; border-radius:3px; overflow:hidden; }
   .prog-bar  { height:100%; width:0%; background:linear-gradient(90deg,#58a6ff,#3fb950); border-radius:3px; transition:width .25s; }
-  .status-txt { font-size:12px; color:#8b949e; white-space:nowrap; min-width:160px; text-align:right; }
+  html[dir="rtl"] .prog-bar { background:linear-gradient(270deg,#58a6ff,#3fb950); }
+  .status-txt {
+    font-size:12px; color:#8b949e; white-space:nowrap;
+    min-width:200px; text-align:end;
+  }
+
+  /* language toggle */
+  .lang-toggle {
+    display:inline-flex; background:#0d1117; border:1px solid #30363d;
+    border-radius:7px; padding:2px;
+  }
+  .lang-toggle button {
+    padding:5px 11px; background:transparent; border:none; color:#8b949e;
+    font-size:12px; font-weight:600; cursor:pointer; border-radius:5px;
+    font-family:inherit; transition:color .15s, background .15s;
+  }
+  .lang-toggle button.active { background:#21262d; color:#e6edf3; }
+  .lang-toggle button:hover:not(.active) { color:#e6edf3; }
+
   .err-box {
     color:#f85149; background:#161b22; border:1px solid #f85149;
     border-radius:8px; padding:14px 18px; font-size:13px; margin-bottom:16px;
@@ -39,12 +58,13 @@
   .section { margin-bottom:22px; }
   .section-title {
     font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.08em;
-    color:#8b949e; margin-bottom:10px; padding-left:2px;
+    color:#8b949e; margin-bottom:10px; padding-inline-start:2px;
   }
+  html[dir="rtl"] .section-title { letter-spacing:0; }
 
   /* KPI grid */
   .kpi-grid {
-    display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr));
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
     gap:12px;
   }
   .kpi {
@@ -52,12 +72,15 @@
     padding:14px 16px; position:relative; overflow:hidden;
   }
   .kpi::before {
-    content:""; position:absolute; left:0; top:0; bottom:0; width:3px; background:#58a6ff;
+    content:""; position:absolute; inset-inline-start:0; top:0; bottom:0;
+    width:3px; background:#58a6ff;
   }
   .kpi.pos::before { background:#3fb950; }
   .kpi.neg::before { background:#f85149; }
   .kpi.warn::before { background:#d29922; }
+  .kpi.muted-accent::before { background:#6e7681; }
   .kpi-label { font-size:11px; color:#8b949e; text-transform:uppercase; letter-spacing:.06em; margin-bottom:6px; }
+  html[dir="rtl"] .kpi-label { letter-spacing:0; text-transform:none; font-weight:600; }
   .kpi-value { font-size:22px; font-weight:700; color:#e6edf3; font-variant-numeric:tabular-nums; }
   .kpi-sub { font-size:11px; color:#6e7681; margin-top:4px; font-variant-numeric:tabular-nums; }
 
@@ -70,7 +93,11 @@
     background:#161b22; border:1px solid #30363d; border-radius:10px; padding:14px 16px;
   }
   .chart-card.full { grid-column:1/-1; }
-  .chart-title { font-size:13px; font-weight:600; color:#e6edf3; margin-bottom:12px; }
+  .chart-title {
+    font-size:13px; font-weight:600; color:#e6edf3; margin-bottom:12px;
+    display:flex; justify-content:space-between; align-items:baseline; gap:8px;
+  }
+  .chart-title small { font-size:11px; color:#6e7681; font-weight:400; }
   .chart-wrap { position:relative; height:280px; }
   .chart-wrap.tall { height:340px; }
 
@@ -79,15 +106,16 @@
     background:#161b22; border:1px solid #30363d; border-radius:10px; overflow:hidden;
   }
   table { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; }
-  th, td { padding:9px 14px; text-align:left; border-bottom:1px solid #21262d; }
+  th, td { padding:9px 14px; text-align:start; border-bottom:1px solid #21262d; }
   th {
     font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:#8b949e;
     font-weight:600; background:#0d1117; position:sticky; top:0;
   }
+  html[dir="rtl"] th { text-transform:none; letter-spacing:0; font-weight:700; }
   td { font-size:13px; color:#e6edf3; }
   tbody tr:last-child td { border-bottom:none; }
   tbody tr:hover { background:#1c2128; }
-  td.num, th.num { text-align:right; }
+  td.num, th.num { text-align:end; }
   .badge {
     display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:600;
   }
@@ -98,9 +126,10 @@
   .muted { color:#6e7681; }
 
   .scroll-y { max-height:520px; overflow-y:auto; }
+  .scroll-y.short { max-height:340px; }
 
   .empty-state {
-    padding:48px 24px; text-align:center; color:#8b949e;
+    padding:40px 24px; text-align:center; color:#8b949e;
     background:#161b22; border:1px dashed #30363d; border-radius:10px;
   }
   .empty-state .big { font-size:36px; margin-bottom:8px; opacity:.4; }
@@ -109,14 +138,20 @@
   ::-webkit-scrollbar-track { background:#0d1117; }
   ::-webkit-scrollbar-thumb { background:#30363d; border-radius:4px; }
   ::-webkit-scrollbar-thumb:hover { background:#484f58; }
+
+  .truncate { max-width:240px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block; vertical-align:middle; }
 </style>
 </head>
 <body>
 
 <div class="ctrl-bar">
-  <button class="load-btn" id="load-btn" onclick="loadAllRecords()">⬇ Load All Records</button>
+  <button class="load-btn" id="load-btn" data-state="idle" onclick="loadAllRecords()">⬇ Load All Records</button>
   <div class="prog-wrap"><div class="prog-bar" id="prog-bar"></div></div>
-  <span class="status-txt" id="status-txt">Press Load to fetch data from Manager</span>
+  <span class="status-txt" id="status-txt" data-key="idle">Press Load to fetch data from Manager</span>
+  <div class="lang-toggle" id="lang-toggle" role="group" aria-label="Language">
+    <button type="button" data-lang="en">EN</button>
+    <button type="button" data-lang="ar">عربي</button>
+  </div>
 </div>
 
 <div id="app"></div>
@@ -130,7 +165,7 @@ function postMessageWithResponse(message) {
     const requestId = crypto.randomUUID();
     const timer = setTimeout(() => {
       window.removeEventListener('message', handler);
-      reject(new Error('Timeout — is this running inside Manager.io?'));
+      reject(new Error(t('err.timeout')));
     }, 15000);
     function handler(event) {
       if (event.data?.type?.endsWith('-response') && event.data?.requestId === requestId) {
@@ -182,14 +217,332 @@ async function fetchBatch(endpoint, onProgress) {
   return allItems;
 }
 
-/* per-endpoint wrappers — kept separate to match the spec */
 async function getPurchaseInvoiceBatch(onProgress) { return fetchBatch('/api4/purchase-invoice-batch', onProgress); }
 async function getSalesInvoiceBatch(onProgress)    { return fetchBatch('/api4/sales-invoice-batch',    onProgress); }
 async function getInventoryItemBatch(onProgress)   { return fetchBatch('/api4/inventory-item-batch',   onProgress); }
 
 /* ══════════════════════════════════
-   loadAllRecords — fetches all three
-   endpoints in sequence and renders.
+   i18n — English + Arabic
+══════════════════════════════════ */
+const I18N = {
+  en: {
+    'btn.load': '⬇ Load All Records',
+    'btn.loading': 'Loading…',
+    'btn.reload': '↺ Reload',
+    'btn.retry': '↺ Retry',
+    'status.idle': 'Press Load to fetch data from Manager',
+    'status.complete': '✓ {0} purchases · {1} sales · {2} items',
+    'status.page': '[{0}/{1}] {2} · {3} loaded (p{4})',
+    'status.pageTotal': '[{0}/{1}] {2} · {3}/{4} (p{5})',
+    'stage.purchases': 'purchase invoices',
+    'stage.sales': 'sales invoices',
+    'stage.inventory': 'inventory items',
+    'err.title': 'Failed to load data',
+    'err.hint': 'Make sure this is running inside Manager.io.',
+    'err.timeout': 'Timeout — is this running inside Manager.io?',
+    'section.overview': 'Overview',
+    'section.trends': 'Trends & Cash Flow',
+    'section.items': 'Item Performance',
+    'section.partners': 'Customers & Suppliers',
+    'section.insights': 'Patterns & Insights',
+    'section.recs': 'What to Purchase Next',
+    'section.details': 'Item Detail',
+    'kpi.totalSales': 'Total Sales',
+    'kpi.totalPurchases': 'Total Purchases',
+    'kpi.grossMargin': 'Gross Margin',
+    'kpi.avgSale': 'Avg Sale',
+    'kpi.avgPurchase': 'Avg Purchase',
+    'kpi.activeCustomers': 'Active Customers',
+    'kpi.activeSuppliers': 'Active Suppliers',
+    'kpi.inventoryItems': 'Inventory Items',
+    'kpi.reorderRecommended': 'Reorder Recommended',
+    'kpi.period': 'Period',
+    'kpi.invoices': '{0} invoices',
+    'kpi.pctSales': '{0}% of sales',
+    'kpi.inactiveReorder': '{0} inactive · {1} on reorder',
+    'kpi.criticalSoon': '{0} critical · {1} soon',
+    'kpi.monthsData': '{0} {1} of data',
+    'kpi.month': 'month',
+    'kpi.months': 'months',
+    'kpi.perInvoice': 'per invoice',
+    'kpi.purchasing': 'purchasing partners',
+    'kpi.selling': 'unique buyers',
+    'chart.monthly': 'Sales vs Purchases · Monthly',
+    'chart.cashflow': 'Cumulative Cash Flow (Sales − Purchases)',
+    'chart.cashflow.sub': 'Running net since first invoice',
+    'chart.topSellers': 'Top 10 Best-Selling Items (by revenue)',
+    'chart.topPurchased': 'Top 10 Most-Purchased Items (by spend)',
+    'chart.topProfitable': 'Top 10 Most Profitable Items',
+    'chart.coverage': 'Stock Coverage Distribution',
+    'chart.volume': 'Invoice Volume · Monthly',
+    'chart.urgency': 'Reorder Urgency',
+    'chart.topCustomers': 'Top 10 Customers (by revenue)',
+    'chart.topSuppliers': 'Top 10 Suppliers (by spend)',
+    'chart.dow': 'Activity by Day of Week',
+    'chart.sales': 'Sales',
+    'chart.purchases': 'Purchases',
+    'chart.net': 'Net',
+    'chart.revenue': 'Revenue',
+    'chart.spend': 'Spend',
+    'chart.margin': 'Margin',
+    'chart.salesInvoices': 'Sales invoices',
+    'chart.purchaseInvoices': 'Purchase invoices',
+    'chart.items': 'items',
+    'th.item': 'Item',
+    'th.status': 'Status',
+    'th.sold': 'Sold',
+    'th.bought': 'Bought',
+    'th.netFlow': 'Net Flow',
+    'th.monthsCover': 'Months Cover',
+    'th.avgMonth': 'Avg / Month',
+    'th.suggestOrder': 'Suggest Order',
+    'th.estCost': 'Est. Cost',
+    'th.lastSale': 'Last Sale',
+    'th.lastPurchase': 'Last Purchase',
+    'th.qty': 'Qty',
+    'th.revenue': 'Revenue',
+    'th.invoices': 'Invoices',
+    'th.spend': 'Spend',
+    'th.cost': 'Cost',
+    'th.margin': 'Margin',
+    'th.marginPct': 'Margin %',
+    'th.customer': 'Customer',
+    'th.supplier': 'Supplier',
+    'badge.critical': 'Critical',
+    'badge.warn': 'Soon',
+    'badge.info': 'Watch',
+    'badge.ok': 'Reorder set',
+    'perf.topSellers': 'Top Sellers — Detail',
+    'perf.topPurchased': 'Top Purchased — Detail',
+    'perf.topProfitable': 'Most Profitable — Detail',
+    'perf.slowMovers': 'Slow Movers / Inactive Items',
+    'perf.topCustomers': 'Customers — Detail',
+    'perf.topSuppliers': 'Suppliers — Detail',
+    'empty.noData': 'No records returned by Manager.io.',
+    'empty.noSales': 'No sales recorded.',
+    'empty.noPurchases': 'No purchases recorded.',
+    'empty.noMargin': 'Cannot compute margins — need both sales and purchases for the same items.',
+    'empty.noCustomers': 'No customer activity.',
+    'empty.noSuppliers': 'No supplier activity.',
+    'empty.noSlow': 'No idle inventory — everything has recent activity.',
+    'empty.healthy': 'No reorder recommendations — stock levels look healthy.',
+    'empty.allHealthy': 'All stock levels healthy.',
+    'item.unknown': '(unknown item)',
+    'cov.depleted': 'Depleted',
+    'cov.lt1': '< 1 mo',
+    'cov.1to3': '1–3 mo',
+    'cov.3to6': '3–6 mo',
+    'cov.gt6': '6+ mo',
+    'cov.never': 'No sales'
+  },
+  ar: {
+    'btn.load': '⬇ تحميل جميع السجلات',
+    'btn.loading': 'جارٍ التحميل…',
+    'btn.reload': '↺ إعادة تحميل',
+    'btn.retry': '↺ إعادة المحاولة',
+    'status.idle': 'اضغط على "تحميل" لجلب البيانات من Manager',
+    'status.complete': '✓ {0} مشتريات · {1} مبيعات · {2} أصناف',
+    'status.page': '[{0}/{1}] {2} · تم تحميل {3} (صفحة {4})',
+    'status.pageTotal': '[{0}/{1}] {2} · {3}/{4} (صفحة {5})',
+    'stage.purchases': 'فواتير الشراء',
+    'stage.sales': 'فواتير المبيعات',
+    'stage.inventory': 'أصناف المخزون',
+    'err.title': 'فشل تحميل البيانات',
+    'err.hint': 'تأكد من تشغيل هذا داخل Manager.io.',
+    'err.timeout': 'انتهت المهلة — هل يعمل هذا داخل Manager.io؟',
+    'section.overview': 'نظرة عامة',
+    'section.trends': 'الاتجاهات والتدفق النقدي',
+    'section.items': 'أداء الأصناف',
+    'section.partners': 'العملاء والموردون',
+    'section.insights': 'الأنماط والرؤى',
+    'section.recs': 'ما يجب شراؤه التالي',
+    'section.details': 'تفاصيل الأصناف',
+    'kpi.totalSales': 'إجمالي المبيعات',
+    'kpi.totalPurchases': 'إجمالي المشتريات',
+    'kpi.grossMargin': 'إجمالي الربح',
+    'kpi.avgSale': 'متوسط فاتورة البيع',
+    'kpi.avgPurchase': 'متوسط فاتورة الشراء',
+    'kpi.activeCustomers': 'العملاء النشطون',
+    'kpi.activeSuppliers': 'الموردون النشطون',
+    'kpi.inventoryItems': 'أصناف المخزون',
+    'kpi.reorderRecommended': 'موصى بإعادة طلبها',
+    'kpi.period': 'الفترة',
+    'kpi.invoices': '{0} فاتورة',
+    'kpi.pctSales': '{0}٪ من المبيعات',
+    'kpi.inactiveReorder': '{0} غير نشط · {1} بحد إعادة طلب',
+    'kpi.criticalSoon': '{0} حرج · {1} قريباً',
+    'kpi.monthsData': '{0} {1} من البيانات',
+    'kpi.month': 'شهر',
+    'kpi.months': 'أشهر',
+    'kpi.perInvoice': 'لكل فاتورة',
+    'kpi.purchasing': 'شركاء التوريد',
+    'kpi.selling': 'مشترون فريدون',
+    'chart.monthly': 'المبيعات مقابل المشتريات · شهرياً',
+    'chart.cashflow': 'التدفق النقدي التراكمي (مبيعات − مشتريات)',
+    'chart.cashflow.sub': 'الصافي التراكمي منذ أول فاتورة',
+    'chart.topSellers': 'أفضل 10 أصناف مبيعاً (حسب الإيرادات)',
+    'chart.topPurchased': 'أفضل 10 أصناف شراءً (حسب الإنفاق)',
+    'chart.topProfitable': 'أفضل 10 أصناف ربحاً',
+    'chart.coverage': 'توزيع تغطية المخزون',
+    'chart.volume': 'عدد الفواتير · شهرياً',
+    'chart.urgency': 'أولوية إعادة الطلب',
+    'chart.topCustomers': 'أفضل 10 عملاء (حسب الإيرادات)',
+    'chart.topSuppliers': 'أفضل 10 موردين (حسب الإنفاق)',
+    'chart.dow': 'النشاط حسب يوم الأسبوع',
+    'chart.sales': 'المبيعات',
+    'chart.purchases': 'المشتريات',
+    'chart.net': 'الصافي',
+    'chart.revenue': 'الإيرادات',
+    'chart.spend': 'الإنفاق',
+    'chart.margin': 'الربح',
+    'chart.salesInvoices': 'فواتير المبيعات',
+    'chart.purchaseInvoices': 'فواتير المشتريات',
+    'chart.items': 'أصناف',
+    'th.item': 'الصنف',
+    'th.status': 'الحالة',
+    'th.sold': 'المباع',
+    'th.bought': 'المشترى',
+    'th.netFlow': 'الصافي',
+    'th.monthsCover': 'أشهر التغطية',
+    'th.avgMonth': 'المتوسط الشهري',
+    'th.suggestOrder': 'الكمية المقترحة',
+    'th.estCost': 'التكلفة التقديرية',
+    'th.lastSale': 'آخر بيع',
+    'th.lastPurchase': 'آخر شراء',
+    'th.qty': 'الكمية',
+    'th.revenue': 'الإيرادات',
+    'th.invoices': 'الفواتير',
+    'th.spend': 'الإنفاق',
+    'th.cost': 'التكلفة',
+    'th.margin': 'الربح',
+    'th.marginPct': 'الربح ٪',
+    'th.customer': 'العميل',
+    'th.supplier': 'المورد',
+    'badge.critical': 'حرج',
+    'badge.warn': 'قريباً',
+    'badge.info': 'مراقبة',
+    'badge.ok': 'بحد إعادة طلب',
+    'perf.topSellers': 'الأفضل مبيعاً — تفاصيل',
+    'perf.topPurchased': 'الأفضل شراءً — تفاصيل',
+    'perf.topProfitable': 'الأكثر ربحاً — تفاصيل',
+    'perf.slowMovers': 'الأصناف الراكدة / غير النشطة',
+    'perf.topCustomers': 'العملاء — تفاصيل',
+    'perf.topSuppliers': 'الموردون — تفاصيل',
+    'empty.noData': 'لم يتم إرجاع أي سجلات من Manager.io.',
+    'empty.noSales': 'لا توجد مبيعات مسجلة.',
+    'empty.noPurchases': 'لا توجد مشتريات مسجلة.',
+    'empty.noMargin': 'تعذّر حساب الربح — يلزم وجود مبيعات ومشتريات لنفس الأصناف.',
+    'empty.noCustomers': 'لا توجد حركة عملاء.',
+    'empty.noSuppliers': 'لا توجد حركة موردين.',
+    'empty.noSlow': 'لا توجد أصناف راكدة — كل شيء له حركة حديثة.',
+    'empty.healthy': 'لا توجد توصيات لإعادة الطلب — مستويات المخزون جيدة.',
+    'empty.allHealthy': 'جميع مستويات المخزون جيدة.',
+    'item.unknown': '(صنف غير معروف)',
+    'cov.depleted': 'منفد',
+    'cov.lt1': '< شهر',
+    'cov.1to3': '1–3 أشهر',
+    'cov.3to6': '3–6 أشهر',
+    'cov.gt6': '6+ أشهر',
+    'cov.never': 'لا مبيعات'
+  }
+};
+
+const state = {
+  lang: (localStorage.getItem('mgr-lang') === 'ar' ? 'ar' : 'en'),
+  data: null
+};
+
+function t(key, ...args) {
+  const dict = I18N[state.lang] || I18N.en;
+  let s = (dict[key] ?? I18N.en[key] ?? key);
+  args.forEach((v, i) => { s = s.replace(new RegExp('\\{' + i + '\\}', 'g'), v); });
+  return s;
+}
+
+/* ══════════════════════════════════
+   Formatting helpers
+══════════════════════════════════ */
+const numLocale  = 'en-US'; // Latin digits for numbers
+const fmtNum  = v => (v == null || isNaN(v)) ? '—' : Number(v).toLocaleString(numLocale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtInt  = v => (v == null || isNaN(v)) ? '—' : Number(v).toLocaleString(numLocale);
+const fmtPct  = v => (v == null || isNaN(v) || !isFinite(v)) ? '—' : v.toFixed(1) + '%';
+const fmtDate = v => {
+  if (!v) return '—';
+  const d = new Date(v);
+  if (isNaN(d)) return '—';
+  const loc = state.lang === 'ar' ? 'ar-EG' : 'en-US';
+  return d.toLocaleDateString(loc, { year: 'numeric', month: 'short', day: '2-digit', numberingSystem: 'latn' });
+};
+const fmtMonth = key => {
+  if (!key || key === 'unknown') return '—';
+  const [y, m] = key.split('-');
+  const loc = state.lang === 'ar' ? 'ar-EG' : 'en-US';
+  return new Date(+y, +m - 1, 1).toLocaleDateString(loc, { year: 'numeric', month: 'short', numberingSystem: 'latn' });
+};
+const dowLabels = () => {
+  const loc = state.lang === 'ar' ? 'ar-EG' : 'en-US';
+  // 0=Sun..6=Sat; pick reference dates that are known weekdays
+  return [0,1,2,3,4,5,6].map(d => new Date(2024, 0, 7 + d).toLocaleDateString(loc, { weekday: 'short' }));
+};
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[c]);
+const truncate = (s, n) => { s = String(s ?? ''); return s.length > n ? s.slice(0, n) + '…' : s; };
+
+function computeLineTotal(line, priceKey) {
+  const qty   = Number(line?.qty || 0);
+  const unit  = Number(line?.[priceKey] || 0);
+  const dPct  = Number(line?.discountPercentage || 0);
+  const dAmt  = Number(line?.discountAmount || 0);
+  return Math.max(0, qty * unit * (1 - dPct / 100) - dAmt);
+}
+
+/* chart instance registry */
+const chartRegistry = {};
+function mountChart(canvasId, config) {
+  const ctx = document.getElementById(canvasId);
+  if (!ctx) return;
+  if (chartRegistry[canvasId]) chartRegistry[canvasId].destroy();
+  chartRegistry[canvasId] = new Chart(ctx, config);
+}
+
+if (window.Chart) {
+  Chart.defaults.color = '#8b949e';
+  Chart.defaults.borderColor = '#30363d';
+  Chart.defaults.font.family = 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Tahoma", "Noto Sans Arabic", sans-serif';
+}
+
+/* Common axis position swap for RTL */
+const yPos = () => state.lang === 'ar' ? 'right' : 'left';
+const xPos = () => state.lang === 'ar' ? 'top'   : 'bottom';
+
+/* ══════════════════════════════════
+   Language switching
+══════════════════════════════════ */
+function setLang(newLang) {
+  if (newLang !== 'en' && newLang !== 'ar') newLang = 'en';
+  state.lang = newLang;
+  try { localStorage.setItem('mgr-lang', newLang); } catch (e) { /* private mode */ }
+  document.documentElement.lang = newLang;
+  document.documentElement.dir  = newLang === 'ar' ? 'rtl' : 'ltr';
+  document.querySelectorAll('#lang-toggle button').forEach(b => {
+    b.classList.toggle('active', b.dataset.lang === newLang);
+  });
+  refreshStaticStrings();
+  if (state.data) render(state.data);
+}
+
+function refreshStaticStrings() {
+  const btn = document.getElementById('load-btn');
+  const status = document.getElementById('status-txt');
+  if (btn) {
+    const map = { idle: 'btn.load', loading: 'btn.loading', reload: 'btn.reload', retry: 'btn.retry' };
+    const k = map[btn.dataset.state || 'idle'];
+    if (k) btn.textContent = t(k);
+  }
+  if (status && status.dataset.key === 'idle') status.textContent = t('status.idle');
+}
+
+/* ══════════════════════════════════
+   loadAllRecords
 ══════════════════════════════════ */
 async function loadAllRecords() {
   const btn    = document.getElementById('load-btn');
@@ -198,14 +551,16 @@ async function loadAllRecords() {
   const app    = document.getElementById('app');
 
   btn.disabled = true;
-  btn.textContent = 'Loading…';
+  btn.dataset.state = 'loading';
+  btn.textContent = t('btn.loading');
+  status.dataset.key = 'progress';
   bar.style.width = '0%';
   app.innerHTML = '';
 
   const stages = [
-    { name: 'purchases', label: 'purchase invoices', fn: getPurchaseInvoiceBatch },
-    { name: 'sales',     label: 'sales invoices',    fn: getSalesInvoiceBatch    },
-    { name: 'inventory', label: 'inventory items',   fn: getInventoryItemBatch   }
+    { name: 'purchases', labelKey: 'stage.purchases', fn: getPurchaseInvoiceBatch },
+    { name: 'sales',     labelKey: 'stage.sales',     fn: getSalesInvoiceBatch    },
+    { name: 'inventory', labelKey: 'stage.inventory', fn: getInventoryItemBatch   }
   ];
 
   const result = {};
@@ -218,86 +573,39 @@ async function loadAllRecords() {
         const overallPct = Math.round(((i + stagePct / 100) / stages.length) * 100);
         bar.style.width = overallPct + '%';
         status.textContent = total
-          ? `[${i+1}/${stages.length}] ${s.label} · ${loaded.toLocaleString()}/${total.toLocaleString()} (p${page})`
-          : `[${i+1}/${stages.length}] ${s.label} · ${loaded.toLocaleString()} loaded (p${page})`;
+          ? t('status.pageTotal', i+1, stages.length, t(s.labelKey), fmtInt(loaded), fmtInt(total), page)
+          : t('status.page',      i+1, stages.length, t(s.labelKey), fmtInt(loaded), page);
       });
     }
 
     bar.style.width = '100%';
-    status.textContent = `✓ ${result.purchases.length.toLocaleString()} purchases · ${result.sales.length.toLocaleString()} sales · ${result.inventory.length.toLocaleString()} items`;
-    btn.textContent = '↺ Reload';
+    status.textContent = t('status.complete', fmtInt(result.purchases.length), fmtInt(result.sales.length), fmtInt(result.inventory.length));
+    btn.dataset.state = 'reload';
+    btn.textContent = t('btn.reload');
     btn.disabled = false;
+    state.data = result;
     render(result);
 
   } catch (err) {
     console.error(err);
     status.textContent = '⚠ ' + err.message;
-    btn.textContent = '↺ Retry';
+    btn.dataset.state = 'retry';
+    btn.textContent = t('btn.retry');
     btn.disabled = false;
-    app.innerHTML = `<div class="err-box"><strong>Failed to load data</strong><br>${err.message}<br><small style="color:#8b949e">Make sure this is running inside Manager.io.</small></div>`;
+    app.innerHTML = `<div class="err-box"><strong>${esc(t('err.title'))}</strong><br>${esc(err.message)}<br><small style="color:#8b949e">${esc(t('err.hint'))}</small></div>`;
   }
 }
 
 /* ══════════════════════════════════
-   Formatting helpers
+   processData(rawData) — derive all
+   aggregates needed for rendering.
 ══════════════════════════════════ */
-const fmtNum  = v => (v == null || isNaN(v)) ? '—' : Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const fmtInt  = v => (v == null || isNaN(v)) ? '—' : Number(v).toLocaleString();
-const fmtDate = v => {
-  if (!v) return '—';
-  const d = new Date(v);
-  if (isNaN(d)) return '—';
-  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: '2-digit' });
-};
-const fmtMonth = key => {
-  if (!key || key === 'unknown') return '—';
-  const [y, m] = key.split('-');
-  return new Date(+y, +m - 1, 1).toLocaleDateString(undefined, { year: 'numeric', month: 'short' });
-};
-const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[c]);
-const sortAlpha = (a, b) => String(a).localeCompare(String(b));
-
-/* compute the value of a single invoice line */
-function computeLineTotal(line, priceKey) {
-  const qty   = Number(line?.qty || 0);
-  const unit  = Number(line?.[priceKey] || 0);
-  const dPct  = Number(line?.discountPercentage || 0);
-  const dAmt  = Number(line?.discountAmount || 0);
-  return Math.max(0, qty * unit * (1 - dPct / 100) - dAmt);
-}
-
-/* keep chart references so we can destroy on reload */
-const chartRegistry = {};
-function mountChart(canvasId, config) {
-  const ctx = document.getElementById(canvasId);
-  if (!ctx) return;
-  if (chartRegistry[canvasId]) chartRegistry[canvasId].destroy();
-  chartRegistry[canvasId] = new Chart(ctx, config);
-}
-
-/* Chart.js dark defaults */
-if (window.Chart) {
-  Chart.defaults.color = '#8b949e';
-  Chart.defaults.borderColor = '#30363d';
-  Chart.defaults.font.family = '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif';
-}
-
-/* ══════════════════════════════════
-   render(data) — main dashboard
-   data = { purchases, sales, inventory }
-══════════════════════════════════ */
-function render(data) {
-  const app = document.getElementById('app');
+function processData(data) {
   const purchases = data.purchases || [];
   const sales     = data.sales     || [];
   const inventory = data.inventory || [];
 
-  if (!purchases.length && !sales.length && !inventory.length) {
-    app.innerHTML = `<div class="empty-state"><div class="big">∅</div><div>No records returned by Manager.io.</div></div>`;
-    return;
-  }
-
-  /* --- Inventory map: UUID → item details --- */
+  /* Inventory lookup */
   const invMap = new Map();
   inventory.forEach(rec => {
     const key = rec?.key ?? rec?.id;
@@ -305,8 +613,8 @@ function render(data) {
     if (key) invMap.set(key, it || {});
   });
 
-  /* --- Per-item aggregates from sales + purchases --- */
-  const stats = new Map(); // uuid → { soldQty, soldRevenue, purchasedQty, purchasedCost, salesCount, purchaseCount, lastSale, lastPurchase }
+  /* Per-item aggregates */
+  const stats = new Map();
   const ensureStats = uuid => {
     if (!stats.has(uuid)) {
       stats.set(uuid, {
@@ -317,23 +625,25 @@ function render(data) {
     return stats.get(uuid);
   };
 
-  /* --- Monthly bucket: YYYY-MM → { sales, purchases, salesCount, purchaseCount } --- */
+  /* Monthly buckets */
   const monthly = new Map();
   const ensureMonth = key => {
     if (!monthly.has(key)) monthly.set(key, { sales: 0, purchases: 0, salesCount: 0, purchaseCount: 0 });
     return monthly.get(key);
   };
 
-  /* --- Supplier / customer aggregates --- */
-  const suppliers = new Map(); // uuid → { spend, count }
-  const customers = new Map(); // uuid → { revenue, count }
+  const suppliers = new Map();
+  const customers = new Map();
+
+  /* Day of week buckets: 0=Sun..6=Sat */
+  const dow = Array.from({length:7}, () => ({ sales: 0, purchases: 0, salesCount: 0, purchaseCount: 0 }));
 
   let totalSales = 0;
   let totalPurchases = 0;
   let earliestDate = null;
   let latestDate   = null;
 
-  /* process sales */
+  /* sales */
   sales.forEach(rec => {
     const it   = rec?.item ?? rec;
     const date = it?.issueDate || null;
@@ -344,12 +654,15 @@ function render(data) {
     if (date) {
       if (!earliestDate || date < earliestDate) earliestDate = date;
       if (!latestDate   || date > latestDate)   latestDate   = date;
+      const wd = new Date(date).getDay();
+      if (!isNaN(wd)) dow[wd].salesCount++;
     }
 
     const cust = it?.customer;
     if (cust) {
-      if (!customers.has(cust)) customers.set(cust, { revenue: 0, count: 0 });
+      if (!customers.has(cust)) customers.set(cust, { revenue: 0, count: 0, lastDate: null });
       customers.get(cust).count++;
+      if (date && (!customers.get(cust).lastDate || date > customers.get(cust).lastDate)) customers.get(cust).lastDate = date;
     }
 
     let invoiceTotal = 0;
@@ -357,6 +670,10 @@ function render(data) {
       const tot = computeLineTotal(line, 'salesUnitPrice');
       invoiceTotal += tot;
       m.sales += tot;
+      if (date) {
+        const wd = new Date(date).getDay();
+        if (!isNaN(wd)) dow[wd].sales += tot;
+      }
 
       const itemId = line?.item;
       if (itemId) {
@@ -371,7 +688,7 @@ function render(data) {
     totalSales += invoiceTotal;
   });
 
-  /* process purchases */
+  /* purchases */
   purchases.forEach(rec => {
     const it   = rec?.item ?? rec;
     const date = it?.issueDate || null;
@@ -382,12 +699,15 @@ function render(data) {
     if (date) {
       if (!earliestDate || date < earliestDate) earliestDate = date;
       if (!latestDate   || date > latestDate)   latestDate   = date;
+      const wd = new Date(date).getDay();
+      if (!isNaN(wd)) dow[wd].purchaseCount++;
     }
 
     const supp = it?.supplier;
     if (supp) {
-      if (!suppliers.has(supp)) suppliers.set(supp, { spend: 0, count: 0 });
+      if (!suppliers.has(supp)) suppliers.set(supp, { spend: 0, count: 0, lastDate: null });
       suppliers.get(supp).count++;
+      if (date && (!suppliers.get(supp).lastDate || date > suppliers.get(supp).lastDate)) suppliers.get(supp).lastDate = date;
     }
 
     let invoiceTotal = 0;
@@ -395,6 +715,10 @@ function render(data) {
       const tot = computeLineTotal(line, 'purchaseUnitPrice');
       invoiceTotal += tot;
       m.purchases += tot;
+      if (date) {
+        const wd = new Date(date).getDay();
+        if (!isNaN(wd)) dow[wd].purchases += tot;
+      }
 
       const itemId = line?.item;
       if (itemId) {
@@ -409,18 +733,36 @@ function render(data) {
     totalPurchases += invoiceTotal;
   });
 
-  const grossMargin = totalSales - totalPurchases;
-  const marginPct   = totalSales > 0 ? (grossMargin / totalSales) * 100 : 0;
+  return {
+    purchases, sales, inventory,
+    invMap, stats, monthly, suppliers, customers, dow,
+    totals: {
+      sales: totalSales,
+      purchases: totalPurchases,
+      grossMargin: totalSales - totalPurchases,
+      marginPct: totalSales > 0 ? ((totalSales - totalPurchases) / totalSales) * 100 : 0
+    },
+    earliestDate, latestDate
+  };
+}
 
-  /* derived: months sorted chronologically */
+/* ══════════════════════════════════
+   render(rawData) — main dashboard
+══════════════════════════════════ */
+function render(data) {
+  const app = document.getElementById('app');
+  const ctx = processData(data);
+
+  if (!ctx.purchases.length && !ctx.sales.length && !ctx.inventory.length) {
+    app.innerHTML = `<div class="empty-state"><div class="big">∅</div><div>${esc(t('empty.noData'))}</div></div>`;
+    return;
+  }
+
+  const { invMap, stats, monthly, suppliers, customers, dow, totals } = ctx;
   const monthKeys = [...monthly.keys()].filter(k => k !== 'unknown').sort();
   const periodMonths = monthKeys.length || 1;
 
-  /* --- "What to purchase" scoring ---
-     For each item with sales activity, treat (purchasedQty - soldQty) as
-     net flow over the dataset window — negative means we've shipped more
-     than we've bought = stock likely depleting. Combine with average
-     monthly sales velocity to estimate urgency and suggested reorder qty. */
+  /* Reorder recommendations */
   const recommendations = [];
   stats.forEach(s => {
     if (s.soldQty <= 0) return;
@@ -439,23 +781,15 @@ function render(data) {
     if (urgency === 'ok' && !inv.reorderPoint) return;
 
     const desired = Number(inv.qtyDesired || 0);
-    const targetMonths = 2; // cover ~2 months of sales
-    const suggestedQty = Math.max(
-      desired,
-      Math.ceil(monthlyVelocity * targetMonths - Math.max(0, netFlow))
-    );
+    const suggestedQty = Math.max(desired, Math.ceil(monthlyVelocity * 2 - Math.max(0, netFlow)));
 
     recommendations.push({
       uuid: s.uuid,
-      name: inv.itemName || inv.nameWithCode || '(unknown item)',
+      name: inv.itemName || inv.nameWithCode || t('item.unknown'),
       unit: inv.unitName || '',
-      soldQty: s.soldQty,
-      purchasedQty: s.purchasedQty,
-      netFlow,
-      monthlyVelocity,
-      monthsOfCover,
-      lastSale: s.lastSale,
-      lastPurchase: s.lastPurchase,
+      soldQty: s.soldQty, purchasedQty: s.purchasedQty,
+      netFlow, monthlyVelocity, monthsOfCover,
+      lastSale: s.lastSale, lastPurchase: s.lastPurchase,
       urgency,
       suggestedQty: Math.max(1, suggestedQty),
       defaultPurchasePrice: Number(inv.defaultPurchaseUnitPrice || 0),
@@ -463,149 +797,278 @@ function render(data) {
     });
   });
 
-  /* sort: critical first, then by deepest deficit */
   const urgencyRank = { critical: 0, warn: 1, info: 2, ok: 3 };
   recommendations.sort((a, b) => {
     if (urgencyRank[a.urgency] !== urgencyRank[b.urgency]) return urgencyRank[a.urgency] - urgencyRank[b.urgency];
     return a.monthsOfCover - b.monthsOfCover;
   });
 
-  /* --- Top sellers / top purchased --- */
-  const itemArr = [...stats.values()].map(s => ({
-    ...s,
-    name: (invMap.get(s.uuid) || {}).itemName || '(unknown)',
-    unit: (invMap.get(s.uuid) || {}).unitName || ''
-  }));
+  /* Per-item arrays */
+  const itemArr = [...stats.values()].map(s => {
+    const inv = invMap.get(s.uuid) || {};
+    return {
+      ...s,
+      name: inv.itemName || t('item.unknown'),
+      unit: inv.unitName || ''
+    };
+  });
   const topSellers   = [...itemArr].sort((a, b) => b.soldRevenue   - a.soldRevenue).slice(0, 10);
   const topPurchased = [...itemArr].sort((a, b) => b.purchasedCost - a.purchasedCost).slice(0, 10);
 
-  /* --- Counts --- */
-  const reorderItemCount = inventory.reduce((n, rec) => n + ((rec?.item ?? rec)?.reorderPoint ? 1 : 0), 0);
-  const inactiveCount    = inventory.reduce((n, rec) => n + ((rec?.item ?? rec)?.inactive ? 1 : 0), 0);
-  const activeItems      = inventory.length - inactiveCount;
+  /* Margin: revenue − implied COGS (avg purchase price × sold qty) */
+  const profitable = itemArr
+    .map(s => {
+      if (s.soldQty <= 0 || s.purchasedQty <= 0) return null;
+      const avgPurchasePrice = s.purchasedCost / s.purchasedQty;
+      const margin = s.soldRevenue - (avgPurchasePrice * s.soldQty);
+      const marginPct = s.soldRevenue > 0 ? (margin / s.soldRevenue) * 100 : 0;
+      return { ...s, avgPurchasePrice, margin, marginPct };
+    })
+    .filter(x => x && isFinite(x.margin))
+    .sort((a, b) => b.margin - a.margin)
+    .slice(0, 10);
+
+  /* Slow movers: inventory items active but with no recent sale OR very low velocity */
+  const slowMovers = [];
+  const latestDate = ctx.latestDate;
+  const cutoff = latestDate ? new Date(new Date(latestDate).getTime() - 60 * 86400000) : null;
+  invMap.forEach((inv, uuid) => {
+    if (inv.inactive) return;
+    const s = stats.get(uuid) || {};
+    const lastSale = s.lastSale ? new Date(s.lastSale) : null;
+    const noRecent = !lastSale || (cutoff && lastSale < cutoff);
+    if (noRecent && (s.purchasedQty > 0 || (s.soldQty || 0) === 0)) {
+      slowMovers.push({
+        name: inv.itemName || t('item.unknown'),
+        unit: inv.unitName || '',
+        purchasedQty: s.purchasedQty || 0,
+        purchasedCost: s.purchasedCost || 0,
+        soldQty: s.soldQty || 0,
+        lastSale: s.lastSale,
+        lastPurchase: s.lastPurchase
+      });
+    }
+  });
+  slowMovers.sort((a, b) => (b.purchasedCost || 0) - (a.purchasedCost || 0));
+
+  /* Top customers / suppliers */
+  const customerArr = [...customers.entries()]
+    .map(([uuid, c]) => ({ uuid, ...c }))
+    .sort((a, b) => b.revenue - a.revenue);
+  const supplierArr = [...suppliers.entries()]
+    .map(([uuid, s]) => ({ uuid, ...s }))
+    .sort((a, b) => b.spend - a.spend);
+
+  /* Coverage distribution */
+  const covBuckets = [
+    { key: 'depleted', label: t('cov.depleted'), color: '#f85149', count: 0 },
+    { key: 'lt1',      label: t('cov.lt1'),      color: '#d29922', count: 0 },
+    { key: '1to3',     label: t('cov.1to3'),     color: '#58a6ff', count: 0 },
+    { key: '3to6',     label: t('cov.3to6'),     color: '#3fb950', count: 0 },
+    { key: 'gt6',      label: t('cov.gt6'),      color: '#7d8590', count: 0 }
+  ];
+  itemArr.forEach(s => {
+    if (s.soldQty <= 0) return;
+    const v = s.soldQty / periodMonths;
+    const netFlow = s.purchasedQty - s.soldQty;
+    const cover = v > 0 ? netFlow / v : Infinity;
+    if (netFlow <= 0) covBuckets[0].count++;
+    else if (cover < 1) covBuckets[1].count++;
+    else if (cover < 3) covBuckets[2].count++;
+    else if (cover < 6) covBuckets[3].count++;
+    else covBuckets[4].count++;
+  });
+
+  /* Counts */
+  const reorderItemCount = ctx.inventory.reduce((n, rec) => n + ((rec?.item ?? rec)?.reorderPoint ? 1 : 0), 0);
+  const inactiveCount    = ctx.inventory.reduce((n, rec) => n + ((rec?.item ?? rec)?.inactive ? 1 : 0), 0);
+  const activeItems      = ctx.inventory.length - inactiveCount;
   const criticalCount    = recommendations.filter(r => r.urgency === 'critical').length;
   const warnCount        = recommendations.filter(r => r.urgency === 'warn').length;
+  const avgSale          = ctx.sales.length ? totals.sales / ctx.sales.length : 0;
+  const avgPurchase      = ctx.purchases.length ? totals.purchases / ctx.purchases.length : 0;
 
-  /* ----- BUILD HTML ----- */
+  const monthsWord = periodMonths === 1 ? t('kpi.month') : t('kpi.months');
+
+  /* ----- HTML ----- */
   app.innerHTML = `
-    <!-- KPI cards -->
+    <!-- KPI ROW -->
     <div class="section">
-      <div class="section-title">Overview</div>
+      <div class="section-title">${esc(t('section.overview'))}</div>
       <div class="kpi-grid">
         <div class="kpi pos">
-          <div class="kpi-label">Total Sales</div>
-          <div class="kpi-value">${fmtNum(totalSales)}</div>
-          <div class="kpi-sub">${fmtInt(sales.length)} invoices</div>
+          <div class="kpi-label">${esc(t('kpi.totalSales'))}</div>
+          <div class="kpi-value">${fmtNum(totals.sales)}</div>
+          <div class="kpi-sub">${esc(t('kpi.invoices', fmtInt(ctx.sales.length)))}</div>
         </div>
         <div class="kpi">
-          <div class="kpi-label">Total Purchases</div>
-          <div class="kpi-value">${fmtNum(totalPurchases)}</div>
-          <div class="kpi-sub">${fmtInt(purchases.length)} invoices</div>
+          <div class="kpi-label">${esc(t('kpi.totalPurchases'))}</div>
+          <div class="kpi-value">${fmtNum(totals.purchases)}</div>
+          <div class="kpi-sub">${esc(t('kpi.invoices', fmtInt(ctx.purchases.length)))}</div>
         </div>
-        <div class="kpi ${grossMargin >= 0 ? 'pos' : 'neg'}">
-          <div class="kpi-label">Gross Margin</div>
-          <div class="kpi-value">${fmtNum(grossMargin)}</div>
-          <div class="kpi-sub">${marginPct.toFixed(1)}% of sales</div>
+        <div class="kpi ${totals.grossMargin >= 0 ? 'pos' : 'neg'}">
+          <div class="kpi-label">${esc(t('kpi.grossMargin'))}</div>
+          <div class="kpi-value">${fmtNum(totals.grossMargin)}</div>
+          <div class="kpi-sub">${esc(t('kpi.pctSales', totals.marginPct.toFixed(1)))}</div>
+        </div>
+        <div class="kpi muted-accent">
+          <div class="kpi-label">${esc(t('kpi.avgSale'))}</div>
+          <div class="kpi-value">${fmtNum(avgSale)}</div>
+          <div class="kpi-sub">${esc(t('kpi.perInvoice'))}</div>
+        </div>
+        <div class="kpi muted-accent">
+          <div class="kpi-label">${esc(t('kpi.avgPurchase'))}</div>
+          <div class="kpi-value">${fmtNum(avgPurchase)}</div>
+          <div class="kpi-sub">${esc(t('kpi.perInvoice'))}</div>
         </div>
         <div class="kpi">
-          <div class="kpi-label">Inventory Items</div>
+          <div class="kpi-label">${esc(t('kpi.activeCustomers'))}</div>
+          <div class="kpi-value">${fmtInt(customers.size)}</div>
+          <div class="kpi-sub">${esc(t('kpi.selling'))}</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">${esc(t('kpi.activeSuppliers'))}</div>
+          <div class="kpi-value">${fmtInt(suppliers.size)}</div>
+          <div class="kpi-sub">${esc(t('kpi.purchasing'))}</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">${esc(t('kpi.inventoryItems'))}</div>
           <div class="kpi-value">${fmtInt(activeItems)}</div>
-          <div class="kpi-sub">${fmtInt(inactiveCount)} inactive · ${fmtInt(reorderItemCount)} on reorder</div>
+          <div class="kpi-sub">${esc(t('kpi.inactiveReorder', fmtInt(inactiveCount), fmtInt(reorderItemCount)))}</div>
         </div>
         <div class="kpi ${criticalCount > 0 ? 'neg' : (warnCount > 0 ? 'warn' : 'pos')}">
-          <div class="kpi-label">Reorder Recommended</div>
+          <div class="kpi-label">${esc(t('kpi.reorderRecommended'))}</div>
           <div class="kpi-value">${fmtInt(recommendations.length)}</div>
-          <div class="kpi-sub">${fmtInt(criticalCount)} critical · ${fmtInt(warnCount)} soon</div>
+          <div class="kpi-sub">${esc(t('kpi.criticalSoon', fmtInt(criticalCount), fmtInt(warnCount)))}</div>
         </div>
         <div class="kpi">
-          <div class="kpi-label">Period</div>
-          <div class="kpi-value" style="font-size:14px">${fmtDate(earliestDate)} → ${fmtDate(latestDate)}</div>
-          <div class="kpi-sub">${fmtInt(periodMonths)} month${periodMonths === 1 ? '' : 's'} of data</div>
+          <div class="kpi-label">${esc(t('kpi.period'))}</div>
+          <div class="kpi-value" style="font-size:14px">${esc(fmtDate(ctx.earliestDate))} → ${esc(fmtDate(ctx.latestDate))}</div>
+          <div class="kpi-sub">${esc(t('kpi.monthsData', fmtInt(periodMonths), monthsWord))}</div>
         </div>
       </div>
     </div>
 
-    <!-- Charts -->
+    <!-- TRENDS & CASH FLOW -->
     <div class="section">
-      <div class="section-title">Trends</div>
+      <div class="section-title">${esc(t('section.trends'))}</div>
       <div class="chart-grid">
         <div class="chart-card full">
-          <div class="chart-title">Sales vs Purchases · Monthly</div>
+          <div class="chart-title"><span>${esc(t('chart.monthly'))}</span></div>
           <div class="chart-wrap tall"><canvas id="chart-monthly"></canvas></div>
         </div>
-        <div class="chart-card">
-          <div class="chart-title">Top 10 Best-Selling Items (by revenue)</div>
-          <div class="chart-wrap"><canvas id="chart-top-sellers"></canvas></div>
+        <div class="chart-card full">
+          <div class="chart-title"><span>${esc(t('chart.cashflow'))}</span><small>${esc(t('chart.cashflow.sub'))}</small></div>
+          <div class="chart-wrap tall"><canvas id="chart-cashflow"></canvas></div>
         </div>
         <div class="chart-card">
-          <div class="chart-title">Top 10 Most-Purchased Items (by spend)</div>
-          <div class="chart-wrap"><canvas id="chart-top-purchased"></canvas></div>
-        </div>
-        <div class="chart-card">
-          <div class="chart-title">Invoice Volume · Monthly</div>
+          <div class="chart-title"><span>${esc(t('chart.volume'))}</span></div>
           <div class="chart-wrap"><canvas id="chart-volume"></canvas></div>
         </div>
         <div class="chart-card">
-          <div class="chart-title">Reorder Urgency Distribution</div>
-          <div class="chart-wrap"><canvas id="chart-urgency"></canvas></div>
+          <div class="chart-title"><span>${esc(t('chart.dow'))}</span></div>
+          <div class="chart-wrap"><canvas id="chart-dow"></canvas></div>
         </div>
       </div>
     </div>
 
-    <!-- Recommendations -->
+    <!-- ITEM PERFORMANCE -->
     <div class="section">
-      <div class="section-title">What to Purchase Next</div>
-      <div class="table-card scroll-y">
-        ${recommendations.length === 0 ? `
-          <div class="empty-state" style="border:none;background:transparent"><div class="big">✓</div><div>No reorder recommendations — stock levels look healthy.</div></div>
-        ` : `
-          <table>
-            <thead>
-              <tr>
-                <th>Item</th>
-                <th>Status</th>
-                <th class="num">Sold</th>
-                <th class="num">Bought</th>
-                <th class="num">Net Flow</th>
-                <th class="num">Months Cover</th>
-                <th class="num">Avg / Month</th>
-                <th class="num">Suggest Order</th>
-                <th class="num">Est. Cost</th>
-                <th>Last Sale</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${recommendations.slice(0, 200).map(r => `
-                <tr>
-                  <td>${esc(r.name)}${r.unit ? ` <span class="muted">/${esc(r.unit)}</span>` : ''}</td>
-                  <td><span class="badge ${r.urgency}">${({critical:'Critical',warn:'Soon',info:'Watch',ok:'Reorder set'})[r.urgency]}</span></td>
-                  <td class="num">${fmtInt(Math.round(r.soldQty))}</td>
-                  <td class="num">${fmtInt(Math.round(r.purchasedQty))}</td>
-                  <td class="num" style="color:${r.netFlow < 0 ? '#f85149' : '#e6edf3'}">${fmtInt(Math.round(r.netFlow))}</td>
-                  <td class="num">${isFinite(r.monthsOfCover) ? r.monthsOfCover.toFixed(1) : '∞'}</td>
-                  <td class="num">${fmtNum(r.monthlyVelocity)}</td>
-                  <td class="num"><strong>${fmtInt(r.suggestedQty)}</strong></td>
-                  <td class="num">${r.estimatedCost > 0 ? fmtNum(r.estimatedCost) : '<span class="muted">—</span>'}</td>
-                  <td>${fmtDate(r.lastSale)}</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-        `}
+      <div class="section-title">${esc(t('section.items'))}</div>
+      <div class="chart-grid">
+        <div class="chart-card">
+          <div class="chart-title"><span>${esc(t('chart.topSellers'))}</span></div>
+          <div class="chart-wrap"><canvas id="chart-top-sellers"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title"><span>${esc(t('chart.topPurchased'))}</span></div>
+          <div class="chart-wrap"><canvas id="chart-top-purchased"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title"><span>${esc(t('chart.topProfitable'))}</span></div>
+          <div class="chart-wrap">
+            ${profitable.length === 0
+              ? `<div class="empty-state" style="border:none;background:transparent;height:100%;display:flex;flex-direction:column;justify-content:center"><div>${esc(t('empty.noMargin'))}</div></div>`
+              : `<canvas id="chart-profitable"></canvas>`}
+          </div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title"><span>${esc(t('chart.coverage'))}</span><small>${esc(t('chart.items'))}</small></div>
+          <div class="chart-wrap"><canvas id="chart-coverage"></canvas></div>
+        </div>
       </div>
     </div>
 
-    <!-- Top sellers and purchased side by side -->
+    <!-- CUSTOMERS & SUPPLIERS -->
     <div class="section">
-      <div class="section-title">Item Performance</div>
+      <div class="section-title">${esc(t('section.partners'))}</div>
       <div class="chart-grid">
         <div class="chart-card">
-          <div class="chart-title">Top Sellers — Detail</div>
-          <div class="scroll-y" style="max-height:340px">
+          <div class="chart-title"><span>${esc(t('chart.topCustomers'))}</span></div>
+          <div class="chart-wrap">
+            ${customerArr.length === 0
+              ? `<div class="empty-state" style="border:none;background:transparent;height:100%;display:flex;flex-direction:column;justify-content:center"><div>${esc(t('empty.noCustomers'))}</div></div>`
+              : `<canvas id="chart-customers"></canvas>`}
+          </div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title"><span>${esc(t('chart.topSuppliers'))}</span></div>
+          <div class="chart-wrap">
+            ${supplierArr.length === 0
+              ? `<div class="empty-state" style="border:none;background:transparent;height:100%;display:flex;flex-direction:column;justify-content:center"><div>${esc(t('empty.noSuppliers'))}</div></div>`
+              : `<canvas id="chart-suppliers"></canvas>`}
+          </div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title"><span>${esc(t('perf.topCustomers'))}</span></div>
+          <div class="scroll-y short">
             <table>
-              <thead><tr><th>Item</th><th class="num">Qty</th><th class="num">Revenue</th><th class="num">Invoices</th></tr></thead>
+              <thead><tr><th>${esc(t('th.customer'))}</th><th class="num">${esc(t('th.revenue'))}</th><th class="num">${esc(t('th.invoices'))}</th></tr></thead>
               <tbody>
-                ${topSellers.length === 0 ? `<tr><td colspan="4" class="muted" style="text-align:center;padding:24px">No sales recorded.</td></tr>` :
+                ${customerArr.length === 0 ? `<tr><td colspan="3" class="muted" style="text-align:center;padding:24px">${esc(t('empty.noCustomers'))}</td></tr>` :
+                  customerArr.slice(0, 30).map(c => `
+                    <tr>
+                      <td><span class="truncate" title="${esc(c.uuid)}">${esc(c.uuid.slice(0, 8))}…</span></td>
+                      <td class="num">${fmtNum(c.revenue)}</td>
+                      <td class="num">${fmtInt(c.count)}</td>
+                    </tr>
+                  `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title"><span>${esc(t('perf.topSuppliers'))}</span></div>
+          <div class="scroll-y short">
+            <table>
+              <thead><tr><th>${esc(t('th.supplier'))}</th><th class="num">${esc(t('th.spend'))}</th><th class="num">${esc(t('th.invoices'))}</th></tr></thead>
+              <tbody>
+                ${supplierArr.length === 0 ? `<tr><td colspan="3" class="muted" style="text-align:center;padding:24px">${esc(t('empty.noSuppliers'))}</td></tr>` :
+                  supplierArr.slice(0, 30).map(s => `
+                    <tr>
+                      <td><span class="truncate" title="${esc(s.uuid)}">${esc(s.uuid.slice(0, 8))}…</span></td>
+                      <td class="num">${fmtNum(s.spend)}</td>
+                      <td class="num">${fmtInt(s.count)}</td>
+                    </tr>
+                  `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ITEM DETAIL TABLES -->
+    <div class="section">
+      <div class="section-title">${esc(t('section.details'))}</div>
+      <div class="chart-grid">
+        <div class="chart-card">
+          <div class="chart-title"><span>${esc(t('perf.topSellers'))}</span></div>
+          <div class="scroll-y short">
+            <table>
+              <thead><tr><th>${esc(t('th.item'))}</th><th class="num">${esc(t('th.qty'))}</th><th class="num">${esc(t('th.revenue'))}</th><th class="num">${esc(t('th.invoices'))}</th></tr></thead>
+              <tbody>
+                ${topSellers.length === 0 ? `<tr><td colspan="4" class="muted" style="text-align:center;padding:24px">${esc(t('empty.noSales'))}</td></tr>` :
                   topSellers.map(s => `
                     <tr>
                       <td>${esc(s.name)}${s.unit ? ` <span class="muted">/${esc(s.unit)}</span>` : ''}</td>
@@ -619,12 +1082,12 @@ function render(data) {
           </div>
         </div>
         <div class="chart-card">
-          <div class="chart-title">Top Purchased — Detail</div>
-          <div class="scroll-y" style="max-height:340px">
+          <div class="chart-title"><span>${esc(t('perf.topPurchased'))}</span></div>
+          <div class="scroll-y short">
             <table>
-              <thead><tr><th>Item</th><th class="num">Qty</th><th class="num">Spend</th><th class="num">Invoices</th></tr></thead>
+              <thead><tr><th>${esc(t('th.item'))}</th><th class="num">${esc(t('th.qty'))}</th><th class="num">${esc(t('th.spend'))}</th><th class="num">${esc(t('th.invoices'))}</th></tr></thead>
               <tbody>
-                ${topPurchased.length === 0 ? `<tr><td colspan="4" class="muted" style="text-align:center;padding:24px">No purchases recorded.</td></tr>` :
+                ${topPurchased.length === 0 ? `<tr><td colspan="4" class="muted" style="text-align:center;padding:24px">${esc(t('empty.noPurchases'))}</td></tr>` :
                   topPurchased.map(s => `
                     <tr>
                       <td>${esc(s.name)}${s.unit ? ` <span class="muted">/${esc(s.unit)}</span>` : ''}</td>
@@ -637,38 +1100,116 @@ function render(data) {
             </table>
           </div>
         </div>
+        <div class="chart-card">
+          <div class="chart-title"><span>${esc(t('perf.topProfitable'))}</span></div>
+          <div class="scroll-y short">
+            <table>
+              <thead><tr><th>${esc(t('th.item'))}</th><th class="num">${esc(t('th.revenue'))}</th><th class="num">${esc(t('th.cost'))}</th><th class="num">${esc(t('th.margin'))}</th><th class="num">${esc(t('th.marginPct'))}</th></tr></thead>
+              <tbody>
+                ${profitable.length === 0 ? `<tr><td colspan="5" class="muted" style="text-align:center;padding:24px">${esc(t('empty.noMargin'))}</td></tr>` :
+                  profitable.map(p => `
+                    <tr>
+                      <td>${esc(p.name)}${p.unit ? ` <span class="muted">/${esc(p.unit)}</span>` : ''}</td>
+                      <td class="num">${fmtNum(p.soldRevenue)}</td>
+                      <td class="num">${fmtNum(p.avgPurchasePrice * p.soldQty)}</td>
+                      <td class="num" style="color:${p.margin >= 0 ? '#3fb950' : '#f85149'}">${fmtNum(p.margin)}</td>
+                      <td class="num">${esc(fmtPct(p.marginPct))}</td>
+                    </tr>
+                  `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title"><span>${esc(t('perf.slowMovers'))}</span></div>
+          <div class="scroll-y short">
+            <table>
+              <thead><tr><th>${esc(t('th.item'))}</th><th class="num">${esc(t('th.bought'))}</th><th class="num">${esc(t('th.cost'))}</th><th>${esc(t('th.lastSale'))}</th></tr></thead>
+              <tbody>
+                ${slowMovers.length === 0 ? `<tr><td colspan="4" class="muted" style="text-align:center;padding:24px">${esc(t('empty.noSlow'))}</td></tr>` :
+                  slowMovers.slice(0, 50).map(s => `
+                    <tr>
+                      <td>${esc(s.name)}${s.unit ? ` <span class="muted">/${esc(s.unit)}</span>` : ''}</td>
+                      <td class="num">${fmtInt(Math.round(s.purchasedQty))}</td>
+                      <td class="num">${fmtNum(s.purchasedCost)}</td>
+                      <td>${esc(fmtDate(s.lastSale))}</td>
+                    </tr>
+                  `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- REORDER RECOMMENDATIONS -->
+    <div class="section">
+      <div class="section-title">${esc(t('section.recs'))}</div>
+      <div class="chart-grid" style="grid-template-columns:minmax(280px,1fr) minmax(540px,3fr)">
+        <div class="chart-card">
+          <div class="chart-title"><span>${esc(t('chart.urgency'))}</span></div>
+          <div class="chart-wrap"><canvas id="chart-urgency"></canvas></div>
+        </div>
+        <div class="table-card scroll-y">
+          ${recommendations.length === 0 ? `
+            <div class="empty-state" style="border:none;background:transparent"><div class="big">✓</div><div>${esc(t('empty.healthy'))}</div></div>
+          ` : `
+            <table>
+              <thead>
+                <tr>
+                  <th>${esc(t('th.item'))}</th>
+                  <th>${esc(t('th.status'))}</th>
+                  <th class="num">${esc(t('th.sold'))}</th>
+                  <th class="num">${esc(t('th.bought'))}</th>
+                  <th class="num">${esc(t('th.netFlow'))}</th>
+                  <th class="num">${esc(t('th.monthsCover'))}</th>
+                  <th class="num">${esc(t('th.avgMonth'))}</th>
+                  <th class="num">${esc(t('th.suggestOrder'))}</th>
+                  <th class="num">${esc(t('th.estCost'))}</th>
+                  <th>${esc(t('th.lastSale'))}</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${recommendations.slice(0, 200).map(r => `
+                  <tr>
+                    <td>${esc(r.name)}${r.unit ? ` <span class="muted">/${esc(r.unit)}</span>` : ''}</td>
+                    <td><span class="badge ${r.urgency}">${esc(t('badge.' + r.urgency))}</span></td>
+                    <td class="num">${fmtInt(Math.round(r.soldQty))}</td>
+                    <td class="num">${fmtInt(Math.round(r.purchasedQty))}</td>
+                    <td class="num" style="color:${r.netFlow < 0 ? '#f85149' : '#e6edf3'}">${fmtInt(Math.round(r.netFlow))}</td>
+                    <td class="num">${isFinite(r.monthsOfCover) ? r.monthsOfCover.toFixed(1) : '∞'}</td>
+                    <td class="num">${fmtNum(r.monthlyVelocity)}</td>
+                    <td class="num"><strong>${fmtInt(r.suggestedQty)}</strong></td>
+                    <td class="num">${r.estimatedCost > 0 ? fmtNum(r.estimatedCost) : '<span class="muted">—</span>'}</td>
+                    <td>${esc(fmtDate(r.lastSale))}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          `}
+        </div>
       </div>
     </div>
   `;
 
-  /* ----- BUILD CHARTS ----- */
-  const monthLabels = monthKeys.map(fmtMonth);
-  const salesSeries     = monthKeys.map(k => monthly.get(k).sales);
-  const purchasesSeries = monthKeys.map(k => monthly.get(k).purchases);
-  const salesCountSeries     = monthKeys.map(k => monthly.get(k).salesCount);
-  const purchaseCountSeries  = monthKeys.map(k => monthly.get(k).purchaseCount);
+  /* ══════════════════════════════════
+     CHARTS
+  ══════════════════════════════════ */
+  const monthLabels         = monthKeys.map(fmtMonth);
+  const salesSeries         = monthKeys.map(k => monthly.get(k).sales);
+  const purchasesSeries     = monthKeys.map(k => monthly.get(k).purchases);
+  const salesCountSeries    = monthKeys.map(k => monthly.get(k).salesCount);
+  const purchaseCountSeries = monthKeys.map(k => monthly.get(k).purchaseCount);
 
-  // Monthly sales vs purchases — line/area chart
+  /* Sales vs Purchases */
   if (monthKeys.length) {
     mountChart('chart-monthly', {
       type: 'line',
       data: {
         labels: monthLabels,
         datasets: [
-          {
-            label: 'Sales',
-            data: salesSeries,
-            borderColor: '#3fb950',
-            backgroundColor: 'rgba(63,185,80,.18)',
-            tension: .3, fill: true, pointRadius: 3, pointHoverRadius: 5
-          },
-          {
-            label: 'Purchases',
-            data: purchasesSeries,
-            borderColor: '#58a6ff',
-            backgroundColor: 'rgba(88,166,255,.15)',
-            tension: .3, fill: true, pointRadius: 3, pointHoverRadius: 5
-          }
+          { label: t('chart.sales'),     data: salesSeries,     borderColor: '#3fb950', backgroundColor: 'rgba(63,185,80,.18)',  tension: .3, fill: true, pointRadius: 3, pointHoverRadius: 5 },
+          { label: t('chart.purchases'), data: purchasesSeries, borderColor: '#58a6ff', backgroundColor: 'rgba(88,166,255,.15)', tension: .3, fill: true, pointRadius: 3, pointHoverRadius: 5 }
         ]
       },
       options: {
@@ -679,77 +1220,70 @@ function render(data) {
         },
         scales: {
           x: { grid: { color: '#21262d' } },
-          y: { grid: { color: '#21262d' }, ticks: { callback: v => fmtInt(v) } }
+          y: { grid: { color: '#21262d' }, ticks: { callback: v => fmtInt(v) }, position: yPos() }
         }
       }
     });
   }
 
-  // Top sellers — horizontal bar
-  if (topSellers.length) {
-    mountChart('chart-top-sellers', {
-      type: 'bar',
+  /* Cumulative cash flow */
+  if (monthKeys.length) {
+    let running = 0;
+    const cumulative = monthKeys.map(k => {
+      const mm = monthly.get(k);
+      running += (mm.sales - mm.purchases);
+      return running;
+    });
+    /* color the area positive/negative — use a single dataset with conditional fill */
+    const minVal = Math.min(0, ...cumulative);
+    mountChart('chart-cashflow', {
+      type: 'line',
       data: {
-        labels: topSellers.map(s => s.name.length > 24 ? s.name.slice(0, 24) + '…' : s.name),
+        labels: monthLabels,
         datasets: [{
-          label: 'Revenue',
-          data: topSellers.map(s => s.soldRevenue),
-          backgroundColor: '#3fb950',
-          borderRadius: 4
+          label: t('chart.net'),
+          data: cumulative,
+          borderColor: '#58a6ff',
+          backgroundColor: ctx => {
+            const c = ctx.chart.ctx;
+            const g = c.createLinearGradient(0, 0, 0, ctx.chart.height);
+            g.addColorStop(0, 'rgba(63,185,80,.4)');
+            g.addColorStop(0.5, 'rgba(88,166,255,.15)');
+            g.addColorStop(1, 'rgba(248,81,73,.4)');
+            return g;
+          },
+          tension: .3, fill: true, pointRadius: 3, pointHoverRadius: 5,
+          segment: {
+            borderColor: ctx => (ctx.p1.parsed.y >= 0 ? '#3fb950' : '#f85149')
+          }
         }]
       },
       options: {
-        indexAxis: 'y',
         responsive: true, maintainAspectRatio: false,
         plugins: {
           legend: { display: false },
-          tooltip: { callbacks: { label: ctx => `Revenue: ${fmtNum(ctx.parsed.x)}` } }
+          tooltip: { callbacks: { label: ctx => `${t('chart.net')}: ${fmtNum(ctx.parsed.y)}` } }
         },
         scales: {
-          x: { grid: { color: '#21262d' }, ticks: { callback: v => fmtInt(v) } },
-          y: { grid: { display: false } }
+          x: { grid: { color: '#21262d' } },
+          y: {
+            grid: { color: '#21262d' }, ticks: { callback: v => fmtInt(v) }, position: yPos(),
+            suggestedMin: minVal < 0 ? minVal * 1.1 : 0
+          }
         }
       }
     });
   }
 
-  // Top purchased — horizontal bar
-  if (topPurchased.length) {
-    mountChart('chart-top-purchased', {
-      type: 'bar',
-      data: {
-        labels: topPurchased.map(s => s.name.length > 24 ? s.name.slice(0, 24) + '…' : s.name),
-        datasets: [{
-          label: 'Spend',
-          data: topPurchased.map(s => s.purchasedCost),
-          backgroundColor: '#58a6ff',
-          borderRadius: 4
-        }]
-      },
-      options: {
-        indexAxis: 'y',
-        responsive: true, maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          tooltip: { callbacks: { label: ctx => `Spend: ${fmtNum(ctx.parsed.x)}` } }
-        },
-        scales: {
-          x: { grid: { color: '#21262d' }, ticks: { callback: v => fmtInt(v) } },
-          y: { grid: { display: false } }
-        }
-      }
-    });
-  }
-
-  // Invoice volume per month
+  /* Invoice volume */
   if (monthKeys.length) {
     mountChart('chart-volume', {
       type: 'bar',
       data: {
         labels: monthLabels,
         datasets: [
-          { label: 'Sales invoices',    data: salesCountSeries,    backgroundColor: '#3fb950', borderRadius: 4 },
-          { label: 'Purchase invoices', data: purchaseCountSeries, backgroundColor: '#58a6ff', borderRadius: 4 }
+          { label: t('chart.salesInvoices'),    data: salesCountSeries,    backgroundColor: '#3fb950', borderRadius: 4 },
+          { label: t('chart.purchaseInvoices'), data: purchaseCountSeries, backgroundColor: '#58a6ff', borderRadius: 4 }
         ]
       },
       options: {
@@ -757,13 +1291,175 @@ function render(data) {
         plugins: { legend: { position: 'top', labels: { color: '#e6edf3' } } },
         scales: {
           x: { grid: { color: '#21262d' } },
-          y: { grid: { color: '#21262d' }, ticks: { stepSize: 1 } }
+          y: { grid: { color: '#21262d' }, ticks: { stepSize: 1 }, position: yPos() }
         }
       }
     });
   }
 
-  // Urgency distribution doughnut
+  /* Day-of-week activity */
+  {
+    mountChart('chart-dow', {
+      type: 'bar',
+      data: {
+        labels: dowLabels(),
+        datasets: [
+          { label: t('chart.sales'),     data: dow.map(d => d.sales),     backgroundColor: '#3fb950', borderRadius: 4 },
+          { label: t('chart.purchases'), data: dow.map(d => d.purchases), backgroundColor: '#58a6ff', borderRadius: 4 }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'top', labels: { color: '#e6edf3' } },
+          tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${fmtNum(ctx.parsed.y)}` } }
+        },
+        scales: {
+          x: { grid: { color: '#21262d' } },
+          y: { grid: { color: '#21262d' }, ticks: { callback: v => fmtInt(v) }, position: yPos() }
+        }
+      }
+    });
+  }
+
+  /* Top sellers */
+  if (topSellers.length) {
+    mountChart('chart-top-sellers', {
+      type: 'bar',
+      data: {
+        labels: topSellers.map(s => truncate(s.name, 24)),
+        datasets: [{ label: t('chart.revenue'), data: topSellers.map(s => s.soldRevenue), backgroundColor: '#3fb950', borderRadius: 4 }]
+      },
+      options: {
+        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => `${t('chart.revenue')}: ${fmtNum(ctx.parsed.x)}` } } },
+        scales: {
+          x: { grid: { color: '#21262d' }, ticks: { callback: v => fmtInt(v) }, position: xPos() },
+          y: { grid: { display: false }, position: yPos() }
+        }
+      }
+    });
+  }
+
+  /* Top purchased */
+  if (topPurchased.length) {
+    mountChart('chart-top-purchased', {
+      type: 'bar',
+      data: {
+        labels: topPurchased.map(s => truncate(s.name, 24)),
+        datasets: [{ label: t('chart.spend'), data: topPurchased.map(s => s.purchasedCost), backgroundColor: '#58a6ff', borderRadius: 4 }]
+      },
+      options: {
+        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => `${t('chart.spend')}: ${fmtNum(ctx.parsed.x)}` } } },
+        scales: {
+          x: { grid: { color: '#21262d' }, ticks: { callback: v => fmtInt(v) }, position: xPos() },
+          y: { grid: { display: false }, position: yPos() }
+        }
+      }
+    });
+  }
+
+  /* Most profitable */
+  if (profitable.length) {
+    mountChart('chart-profitable', {
+      type: 'bar',
+      data: {
+        labels: profitable.map(p => truncate(p.name, 24)),
+        datasets: [{
+          label: t('chart.margin'),
+          data: profitable.map(p => p.margin),
+          backgroundColor: profitable.map(p => p.margin >= 0 ? '#3fb950' : '#f85149'),
+          borderRadius: 4
+        }]
+      },
+      options: {
+        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: ctx => {
+            const p = profitable[ctx.dataIndex];
+            return `${t('chart.margin')}: ${fmtNum(p.margin)} (${fmtPct(p.marginPct)})`;
+          } } }
+        },
+        scales: {
+          x: { grid: { color: '#21262d' }, ticks: { callback: v => fmtInt(v) }, position: xPos() },
+          y: { grid: { display: false }, position: yPos() }
+        }
+      }
+    });
+  }
+
+  /* Coverage distribution */
+  {
+    mountChart('chart-coverage', {
+      type: 'bar',
+      data: {
+        labels: covBuckets.map(b => b.label),
+        datasets: [{
+          data: covBuckets.map(b => b.count),
+          backgroundColor: covBuckets.map(b => b.color),
+          borderRadius: 4
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => `${ctx.parsed.y} ${t('chart.items')}` } } },
+        scales: {
+          x: { grid: { display: false } },
+          y: { grid: { color: '#21262d' }, ticks: { stepSize: 1, precision: 0 }, position: yPos() }
+        }
+      }
+    });
+  }
+
+  /* Top customers */
+  if (customerArr.length) {
+    const top = customerArr.slice(0, 10);
+    mountChart('chart-customers', {
+      type: 'bar',
+      data: {
+        labels: top.map(c => c.uuid.slice(0, 8) + '…'),
+        datasets: [{ label: t('chart.revenue'), data: top.map(c => c.revenue), backgroundColor: '#3fb950', borderRadius: 4 }]
+      },
+      options: {
+        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: ctx => `${t('chart.revenue')}: ${fmtNum(ctx.parsed.x)}`, title: ctx => top[ctx[0].dataIndex].uuid } }
+        },
+        scales: {
+          x: { grid: { color: '#21262d' }, ticks: { callback: v => fmtInt(v) }, position: xPos() },
+          y: { grid: { display: false }, position: yPos() }
+        }
+      }
+    });
+  }
+
+  /* Top suppliers */
+  if (supplierArr.length) {
+    const top = supplierArr.slice(0, 10);
+    mountChart('chart-suppliers', {
+      type: 'bar',
+      data: {
+        labels: top.map(s => s.uuid.slice(0, 8) + '…'),
+        datasets: [{ label: t('chart.spend'), data: top.map(s => s.spend), backgroundColor: '#58a6ff', borderRadius: 4 }]
+      },
+      options: {
+        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: ctx => `${t('chart.spend')}: ${fmtNum(ctx.parsed.x)}`, title: ctx => top[ctx[0].dataIndex].uuid } }
+        },
+        scales: {
+          x: { grid: { color: '#21262d' }, ticks: { callback: v => fmtInt(v) }, position: xPos() },
+          y: { grid: { display: false }, position: yPos() }
+        }
+      }
+    });
+  }
+
+  /* Urgency doughnut */
   const urgencyCounts = {
     critical: recommendations.filter(r => r.urgency === 'critical').length,
     warn:     recommendations.filter(r => r.urgency === 'warn').length,
@@ -775,7 +1471,7 @@ function render(data) {
     mountChart('chart-urgency', {
       type: 'doughnut',
       data: {
-        labels: ['Critical', 'Soon', 'Watch', 'Reorder set'],
+        labels: [t('badge.critical'), t('badge.warn'), t('badge.info'), t('badge.ok')],
         datasets: [{
           data: [urgencyCounts.critical, urgencyCounts.warn, urgencyCounts.info, urgencyCounts.ok],
           backgroundColor: ['#f85149', '#d29922', '#58a6ff', '#3fb950'],
@@ -784,15 +1480,23 @@ function render(data) {
       },
       options: {
         responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { position: 'right', labels: { color: '#e6edf3', boxWidth: 12 } } },
+        plugins: { legend: { position: state.lang === 'ar' ? 'left' : 'right', labels: { color: '#e6edf3', boxWidth: 12 } } },
         cutout: '60%'
       }
     });
   } else {
-    const ctx = document.getElementById('chart-urgency');
-    if (ctx) ctx.parentElement.innerHTML = `<div class="empty-state" style="border:none;background:transparent;height:100%;display:flex;flex-direction:column;justify-content:center"><div class="big">✓</div><div>All stock levels healthy.</div></div>`;
+    const elem = document.getElementById('chart-urgency');
+    if (elem) elem.parentElement.innerHTML = `<div class="empty-state" style="border:none;background:transparent;height:100%;display:flex;flex-direction:column;justify-content:center"><div class="big">✓</div><div>${esc(t('empty.allHealthy'))}</div></div>`;
   }
 }
+
+/* ══════════════════════════════════
+   Bootstrap
+══════════════════════════════════ */
+document.querySelectorAll('#lang-toggle button').forEach(b => {
+  b.addEventListener('click', () => setLang(b.dataset.lang));
+});
+setLang(state.lang);
 </script>
 </body>
 </html>
