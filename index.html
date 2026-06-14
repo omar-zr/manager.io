@@ -224,6 +224,9 @@ async function getCustomerBatch(onProgress)        { return fetchBatch('/api4/cu
 async function getSupplierBatch(onProgress)        { return fetchBatch('/api4/supplier-batch',        onProgress); }
 async function getCreditNoteBatch(onProgress)      { return fetchBatch('/api4/credit-note-batch',     onProgress); }
 async function getDebitNoteBatch(onProgress)       { return fetchBatch('/api4/debit-note-batch',      onProgress); }
+async function getInventoryWriteOffBatch(onProgress){ return fetchBatch('/api4/inventory-write-off-batch', onProgress); }
+async function getProductionOrderBatch(onProgress) { return fetchBatch('/api4/production-order-batch', onProgress); }
+async function getBomBatch(onProgress)             { return fetchBatch('/api4/bill-of-materials-batch', onProgress); }
 
 /* ══════════════════════════════════
    i18n — English + Arabic
@@ -245,12 +248,15 @@ const I18N = {
     'stage.suppliers': 'suppliers',
     'stage.creditNotes': 'sales returns',
     'stage.debitNotes': 'purchase returns',
+    'stage.writeOffs': 'write-offs',
+    'stage.production': 'production orders',
+    'stage.bom': 'bill of materials',
     'err.title': 'Failed to load data',
     'err.hint': 'Make sure this is running inside Manager.io.',
     'err.timeout': 'Timeout — is this running inside Manager.io?',
     'section.overview': 'Overview',
     'section.shortage': 'Shortage Forecast — Next 30 Days',
-    'shortage.banner': 'Forecast = what you sold in the last 30 days, assumed to repeat. Stock = purchases − sales across all loaded history; if data predates this system the estimate may be low.',
+    'shortage.banner': 'Forecast = what you sold (net of returns) in the last 30 days, assumed to repeat. Stock = purchases + production − sales − write-offs − BOM consumption, across all loaded history; if data predates this system the estimate may be low.',
     'kpi.shortageRisk': 'Shortage Risk',
     'kpi.shortageRiskSub': '{0} out of stock',
     'th.sold30': 'Sold (last 30d)',
@@ -368,12 +374,15 @@ const I18N = {
     'stage.suppliers': 'الموردون',
     'stage.creditNotes': 'مرتجعات المبيعات',
     'stage.debitNotes': 'مرتجعات المشتريات',
+    'stage.writeOffs': 'إلغاءات المخزون',
+    'stage.production': 'أوامر الإنتاج',
+    'stage.bom': 'قوائم المواد',
     'err.title': 'فشل تحميل البيانات',
     'err.hint': 'تأكد من تشغيل هذا داخل Manager.io.',
     'err.timeout': 'انتهت المهلة — هل يعمل هذا داخل Manager.io؟',
     'section.overview': 'نظرة عامة',
     'section.shortage': 'توقع النفاد — خلال 30 يوماً',
-    'shortage.banner': 'التوقع = ما بعته في آخر 30 يوماً، مع افتراض تكراره. المخزون = (المشتريات − المبيعات) عبر كامل البيانات المحمّلة؛ قد يكون أقل من الواقع إذا كانت بياناتك أقدم من النظام.',
+    'shortage.banner': 'التوقع = صافي المبيعات (بعد المرتجعات) في آخر 30 يوماً، مع افتراض تكراره. المخزون = المشتريات + الإنتاج − المبيعات − الإلغاءات − مواد الإنتاج، عبر كامل البيانات المحمّلة؛ قد يكون أقل من الواقع إذا كانت بياناتك أقدم من النظام.',
     'kpi.shortageRisk': 'مخاطر النفاد',
     'kpi.shortageRiskSub': '{0} نفدت بالفعل',
     'th.sold30': 'المبيع (آخر 30ي)',
@@ -592,6 +601,9 @@ async function loadAllRecords() {
     { name: 'sales',        labelKey: 'stage.sales',       fn: getSalesInvoiceBatch    },
     { name: 'creditNotes',  labelKey: 'stage.creditNotes', fn: getCreditNoteBatch      },
     { name: 'debitNotes',   labelKey: 'stage.debitNotes',  fn: getDebitNoteBatch       },
+    { name: 'writeOffs',    labelKey: 'stage.writeOffs',   fn: getInventoryWriteOffBatch },
+    { name: 'production',   labelKey: 'stage.production',  fn: getProductionOrderBatch },
+    { name: 'boms',         labelKey: 'stage.bom',         fn: getBomBatch, optional: true },
     { name: 'inventory',    labelKey: 'stage.inventory',   fn: getInventoryItemBatch   },
     { name: 'customerList', labelKey: 'stage.customers',   fn: getCustomerBatch        },
     { name: 'supplierList', labelKey: 'stage.suppliers',   fn: getSupplierBatch        }
@@ -602,14 +614,24 @@ async function loadAllRecords() {
   try {
     for (let i = 0; i < stages.length; i++) {
       const s = stages[i];
-      result[s.name] = await s.fn((loaded, total, page) => {
+      const onProg = (loaded, total, page) => {
         const stagePct = total ? Math.min(95, Math.round(loaded / total * 100)) : Math.min(95, page * 5);
         const overallPct = Math.round(((i + stagePct / 100) / stages.length) * 100);
         bar.style.width = overallPct + '%';
         status.textContent = total
           ? t('status.pageTotal', i+1, stages.length, t(s.labelKey), fmtInt(loaded), fmtInt(total), page)
           : t('status.page',      i+1, stages.length, t(s.labelKey), fmtInt(loaded), page);
-      });
+      };
+      try {
+        result[s.name] = await s.fn(onProg);
+      } catch (e) {
+        if (s.optional) {
+          console.warn(`[${s.name}] optional endpoint failed — continuing with empty:`, e.message);
+          result[s.name] = [];
+        } else {
+          throw e;
+        }
+      }
     }
 
     bar.style.width = '100%';
@@ -646,6 +668,9 @@ function processData(data) {
   const sales         = data.sales         || [];
   const creditNotes   = data.creditNotes   || [];   // sales returns
   const debitNotes    = data.debitNotes    || [];   // purchase returns
+  const writeOffs     = data.writeOffs     || [];   // inventory write-offs
+  const production    = data.production    || [];   // production orders
+  const boms          = data.boms          || [];   // bill of materials
   const inventory     = data.inventory     || [];
   const customerList  = data.customerList  || [];
   const supplierList  = data.supplierList  || [];
@@ -679,7 +704,8 @@ function processData(data) {
     if (!stats.has(uuid)) {
       stats.set(uuid, {
         uuid, soldQty: 0, soldRevenue: 0, purchasedQty: 0, purchasedCost: 0,
-        salesCount: 0, purchaseCount: 0, lastSale: null, lastPurchase: null
+        salesCount: 0, purchaseCount: 0, lastSale: null, lastPurchase: null,
+        producedQty: 0, consumedQty: 0, writtenOffQty: 0
       });
     }
     return stats.get(uuid);
@@ -845,8 +871,61 @@ function processData(data) {
     totalPurchases -= returnTotal;
   });
 
+  /* inventory write-offs — pure stock reduction (not demand, not money) */
+  writeOffs.forEach(rec => {
+    const it = rec?.item ?? rec;
+    (it?.items || []).forEach(line => {
+      const itemId = line?.inventoryItem;
+      if (!itemId) return;
+      const s = ensureStats(itemId);
+      s.writtenOffQty += Number(line?.qty || 0);
+    });
+  });
+
+  /* Build a lookup of BOM definitions: bomId → array of { inventoryItem, qty } needed per 1 unit produced.
+     Schema varies; we try a couple of plausible field names defensively. */
+  const bomMap = new Map();
+  boms.forEach(rec => {
+    const key = rec?.key ?? rec?.id;
+    const it  = rec?.item ?? rec;
+    if (!key) return;
+    const lines = it?.lines || it?.billOfMaterialsItems || it?.items || [];
+    const materials = lines
+      .map(l => ({
+        inventoryItem: l?.inventoryItem ?? l?.item ?? l?.billOfMaterialsItem ?? null,
+        qty: Number(l?.qty || 0)
+      }))
+      .filter(m => m.inventoryItem && m.qty > 0);
+    if (materials.length) bomMap.set(key, materials);
+  });
+
+  /* production orders — add finished qty, subtract raw materials via BOM lookup */
+  production.forEach(rec => {
+    const it = rec?.item ?? rec;
+    const finishedItem = it?.finishedInventoryItem;
+    const producedQty  = Number(it?.qty || 0);
+
+    if (finishedItem && producedQty > 0) {
+      ensureStats(finishedItem).producedQty += producedQty;
+    }
+
+    (it?.billOfMaterials || []).forEach(line => {
+      const bomMultiplier = Number(line?.qty || 1);
+      const bomRefId      = line?.billOfMaterials;
+      const materials     = bomRefId ? bomMap.get(bomRefId) : null;
+      if (materials) {
+        materials.forEach(m => {
+          ensureStats(m.inventoryItem).consumedQty += m.qty * bomMultiplier * producedQty;
+        });
+      }
+      // If BOM endpoint isn't available, raw material consumption can't be computed
+      // — finished output is still tracked, so net stock estimate is partial but conservative.
+    });
+  });
+
   return {
-    purchases, sales, creditNotes, debitNotes, inventory, customerList, supplierList,
+    purchases, sales, creditNotes, debitNotes, writeOffs, production, boms,
+    inventory, customerList, supplierList,
     invMap, customerNames, supplierNames,
     stats, monthly, suppliers, customers, dow,
     totals: {
@@ -874,6 +953,9 @@ function render(data) {
   const { invMap, customerNames, supplierNames, stats, monthly, suppliers, customers, dow, totals } = ctx;
   const customerLabel = uuid => customerNames.get(uuid) || (uuid ? (uuid.slice(0, 8) + '…') : '—');
   const supplierLabel = uuid => supplierNames.get(uuid) || (uuid ? (uuid.slice(0, 8) + '…') : '—');
+  /* Net stock: purchases (gross) + production output − sales (net of returns) − write-offs − BOM consumption.
+     Sales/purchase fields already incorporate credit/debit-note returns from processData. */
+  const estStockOf = s => (s.purchasedQty || 0) + (s.producedQty || 0) - (s.soldQty || 0) - (s.writtenOffQty || 0) - (s.consumedQty || 0);
   const monthKeys = [...monthly.keys()].filter(k => k !== 'unknown').sort();
   const periodMonths = monthKeys.length || 1;
 
@@ -882,7 +964,7 @@ function render(data) {
   stats.forEach(s => {
     if (s.soldQty <= 0) return;
     const inv = invMap.get(s.uuid) || {};
-    const netFlow = s.purchasedQty - s.soldQty;
+    const netFlow = estStockOf(s);
     const monthlyVelocity = s.soldQty / periodMonths;
     const monthsOfCover = monthlyVelocity > 0 ? netFlow / monthlyVelocity : Infinity;
 
@@ -985,7 +1067,7 @@ function render(data) {
   itemArr.forEach(s => {
     if (s.soldQty <= 0) return;
     const v = s.soldQty / periodMonths;
-    const netFlow = s.purchasedQty - s.soldQty;
+    const netFlow = estStockOf(s);
     const cover = v > 0 ? netFlow / v : Infinity;
     if (netFlow <= 0) covBuckets[0].count++;
     else if (cover < 1) covBuckets[1].count++;
@@ -1029,7 +1111,7 @@ function render(data) {
   stats.forEach(s => {
     const sold30 = last30ByItem.get(s.uuid) || 0;
     if (sold30 <= 0) return;                       // no recent activity → skip
-    const estStock = s.purchasedQty - s.soldQty;
+    const estStock = estStockOf(s);
     const forecast30 = sold30;                     // same rate repeats
     const shortage = Math.max(0, forecast30 - Math.max(0, estStock));
     if (shortage <= 0) return;                     // stock covers forecast → no warning needed
