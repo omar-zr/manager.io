@@ -1,0 +1,798 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Manager.io — Sales vs Stock Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    background:#0d1117; color:#e6edf3; min-height:100vh; padding:20px;
+    font-size:14px; line-height:1.45;
+  }
+
+  /* control bar */
+  .ctrl-bar {
+    display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+    padding:12px 16px; margin-bottom:18px;
+    background:#161b22; border:1px solid #30363d; border-radius:10px;
+  }
+  .load-btn {
+    padding:8px 20px; border:none; border-radius:7px; cursor:pointer;
+    font-size:13px; font-weight:700; background:#58a6ff; color:#0d1117;
+    transition:opacity .15s, transform .1s;
+  }
+  .load-btn:hover:not(:disabled) { opacity:.9; }
+  .load-btn:active:not(:disabled) { transform:scale(.97); }
+  .load-btn:disabled { opacity:.45; cursor:not-allowed; }
+  .prog-wrap { flex:1; min-width:140px; height:5px; background:#30363d; border-radius:3px; overflow:hidden; }
+  .prog-bar  { height:100%; width:0%; background:linear-gradient(90deg,#58a6ff,#3fb950); border-radius:3px; transition:width .25s; }
+  .status-txt { font-size:12px; color:#8b949e; white-space:nowrap; min-width:160px; text-align:right; }
+  .err-box {
+    color:#f85149; background:#161b22; border:1px solid #f85149;
+    border-radius:8px; padding:14px 18px; font-size:13px; margin-bottom:16px;
+  }
+
+  /* layout */
+  .section { margin-bottom:22px; }
+  .section-title {
+    font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.08em;
+    color:#8b949e; margin-bottom:10px; padding-left:2px;
+  }
+
+  /* KPI grid */
+  .kpi-grid {
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr));
+    gap:12px;
+  }
+  .kpi {
+    background:#161b22; border:1px solid #30363d; border-radius:10px;
+    padding:14px 16px; position:relative; overflow:hidden;
+  }
+  .kpi::before {
+    content:""; position:absolute; left:0; top:0; bottom:0; width:3px; background:#58a6ff;
+  }
+  .kpi.pos::before { background:#3fb950; }
+  .kpi.neg::before { background:#f85149; }
+  .kpi.warn::before { background:#d29922; }
+  .kpi-label { font-size:11px; color:#8b949e; text-transform:uppercase; letter-spacing:.06em; margin-bottom:6px; }
+  .kpi-value { font-size:22px; font-weight:700; color:#e6edf3; font-variant-numeric:tabular-nums; }
+  .kpi-sub { font-size:11px; color:#6e7681; margin-top:4px; font-variant-numeric:tabular-nums; }
+
+  /* chart grid */
+  .chart-grid {
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(380px,1fr));
+    gap:14px;
+  }
+  .chart-card {
+    background:#161b22; border:1px solid #30363d; border-radius:10px; padding:14px 16px;
+  }
+  .chart-card.full { grid-column:1/-1; }
+  .chart-title { font-size:13px; font-weight:600; color:#e6edf3; margin-bottom:12px; }
+  .chart-wrap { position:relative; height:280px; }
+  .chart-wrap.tall { height:340px; }
+
+  /* tables */
+  .table-card {
+    background:#161b22; border:1px solid #30363d; border-radius:10px; overflow:hidden;
+  }
+  table { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; }
+  th, td { padding:9px 14px; text-align:left; border-bottom:1px solid #21262d; }
+  th {
+    font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:#8b949e;
+    font-weight:600; background:#0d1117; position:sticky; top:0;
+  }
+  td { font-size:13px; color:#e6edf3; }
+  tbody tr:last-child td { border-bottom:none; }
+  tbody tr:hover { background:#1c2128; }
+  td.num, th.num { text-align:right; }
+  .badge {
+    display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:600;
+  }
+  .badge.critical { background:rgba(248,81,73,.15); color:#f85149; }
+  .badge.warn     { background:rgba(210,153,34,.15); color:#d29922; }
+  .badge.info     { background:rgba(88,166,255,.15); color:#58a6ff; }
+  .badge.ok       { background:rgba(63,185,80,.15); color:#3fb950; }
+  .muted { color:#6e7681; }
+
+  .scroll-y { max-height:520px; overflow-y:auto; }
+
+  .empty-state {
+    padding:48px 24px; text-align:center; color:#8b949e;
+    background:#161b22; border:1px dashed #30363d; border-radius:10px;
+  }
+  .empty-state .big { font-size:36px; margin-bottom:8px; opacity:.4; }
+
+  ::-webkit-scrollbar { width:8px; height:8px; }
+  ::-webkit-scrollbar-track { background:#0d1117; }
+  ::-webkit-scrollbar-thumb { background:#30363d; border-radius:4px; }
+  ::-webkit-scrollbar-thumb:hover { background:#484f58; }
+</style>
+</head>
+<body>
+
+<div class="ctrl-bar">
+  <button class="load-btn" id="load-btn" onclick="loadAllRecords()">⬇ Load All Records</button>
+  <div class="prog-wrap"><div class="prog-bar" id="prog-bar"></div></div>
+  <span class="status-txt" id="status-txt">Press Load to fetch data from Manager</span>
+</div>
+
+<div id="app"></div>
+
+<script>
+/* ══════════════════════════════════
+   postMessage helper — DO NOT MODIFY
+══════════════════════════════════ */
+function postMessageWithResponse(message) {
+  return new Promise((resolve, reject) => {
+    const requestId = crypto.randomUUID();
+    const timer = setTimeout(() => {
+      window.removeEventListener('message', handler);
+      reject(new Error('Timeout — is this running inside Manager.io?'));
+    }, 15000);
+    function handler(event) {
+      if (event.data?.type?.endsWith('-response') && event.data?.requestId === requestId) {
+        clearTimeout(timer);
+        window.removeEventListener('message', handler);
+        resolve(event.data.body);
+      }
+    }
+    window.addEventListener('message', handler);
+    window.parent.postMessage({ ...message, requestId }, '*');
+  });
+}
+
+/* ══════════════════════════════════
+   Generic paginated batch fetcher
+   Follows next_page_token until the
+   API returns no more pages.
+   DO NOT SIMPLIFY — Manager.io caps
+   pages at 50 records each.
+══════════════════════════════════ */
+async function fetchBatch(endpoint, onProgress) {
+  const allItems = [];
+  let nextToken  = null;
+  let pageNum    = 0;
+  let apiTotal   = null;
+
+  do {
+    const path = nextToken
+      ? endpoint + '?PageSize=99999&next_page_token=' + encodeURIComponent(nextToken)
+      : endpoint + '?PageSize=99999';
+
+    const data = await postMessageWithResponse({ type: 'api-request', method: 'GET', path });
+
+    const page = Array.isArray(data) ? data : (data.items || data.data || []);
+    allItems.push(...page);
+
+    nextToken = data.next_page_token || data.nextPageToken || data._links?.next?.href || null;
+
+    if (apiTotal === null) {
+      apiTotal = data.totalCount ?? data.total ?? data.count ?? data._metadata?.totalCount ?? null;
+    }
+
+    pageNum++;
+    if (onProgress) onProgress(allItems.length, apiTotal, pageNum);
+    if (pageNum >= 1000) break;
+
+  } while (nextToken);
+
+  return allItems;
+}
+
+/* per-endpoint wrappers — kept separate to match the spec */
+async function getPurchaseInvoiceBatch(onProgress) { return fetchBatch('/api4/purchase-invoice-batch', onProgress); }
+async function getSalesInvoiceBatch(onProgress)    { return fetchBatch('/api4/sales-invoice-batch',    onProgress); }
+async function getInventoryItemBatch(onProgress)   { return fetchBatch('/api4/inventory-item-batch',   onProgress); }
+
+/* ══════════════════════════════════
+   loadAllRecords — fetches all three
+   endpoints in sequence and renders.
+══════════════════════════════════ */
+async function loadAllRecords() {
+  const btn    = document.getElementById('load-btn');
+  const bar    = document.getElementById('prog-bar');
+  const status = document.getElementById('status-txt');
+  const app    = document.getElementById('app');
+
+  btn.disabled = true;
+  btn.textContent = 'Loading…';
+  bar.style.width = '0%';
+  app.innerHTML = '';
+
+  const stages = [
+    { name: 'purchases', label: 'purchase invoices', fn: getPurchaseInvoiceBatch },
+    { name: 'sales',     label: 'sales invoices',    fn: getSalesInvoiceBatch    },
+    { name: 'inventory', label: 'inventory items',   fn: getInventoryItemBatch   }
+  ];
+
+  const result = {};
+
+  try {
+    for (let i = 0; i < stages.length; i++) {
+      const s = stages[i];
+      result[s.name] = await s.fn((loaded, total, page) => {
+        const stagePct = total ? Math.min(95, Math.round(loaded / total * 100)) : Math.min(95, page * 5);
+        const overallPct = Math.round(((i + stagePct / 100) / stages.length) * 100);
+        bar.style.width = overallPct + '%';
+        status.textContent = total
+          ? `[${i+1}/${stages.length}] ${s.label} · ${loaded.toLocaleString()}/${total.toLocaleString()} (p${page})`
+          : `[${i+1}/${stages.length}] ${s.label} · ${loaded.toLocaleString()} loaded (p${page})`;
+      });
+    }
+
+    bar.style.width = '100%';
+    status.textContent = `✓ ${result.purchases.length.toLocaleString()} purchases · ${result.sales.length.toLocaleString()} sales · ${result.inventory.length.toLocaleString()} items`;
+    btn.textContent = '↺ Reload';
+    btn.disabled = false;
+    render(result);
+
+  } catch (err) {
+    console.error(err);
+    status.textContent = '⚠ ' + err.message;
+    btn.textContent = '↺ Retry';
+    btn.disabled = false;
+    app.innerHTML = `<div class="err-box"><strong>Failed to load data</strong><br>${err.message}<br><small style="color:#8b949e">Make sure this is running inside Manager.io.</small></div>`;
+  }
+}
+
+/* ══════════════════════════════════
+   Formatting helpers
+══════════════════════════════════ */
+const fmtNum  = v => (v == null || isNaN(v)) ? '—' : Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtInt  = v => (v == null || isNaN(v)) ? '—' : Number(v).toLocaleString();
+const fmtDate = v => {
+  if (!v) return '—';
+  const d = new Date(v);
+  if (isNaN(d)) return '—';
+  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: '2-digit' });
+};
+const fmtMonth = key => {
+  if (!key || key === 'unknown') return '—';
+  const [y, m] = key.split('-');
+  return new Date(+y, +m - 1, 1).toLocaleDateString(undefined, { year: 'numeric', month: 'short' });
+};
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[c]);
+const sortAlpha = (a, b) => String(a).localeCompare(String(b));
+
+/* compute the value of a single invoice line */
+function computeLineTotal(line, priceKey) {
+  const qty   = Number(line?.qty || 0);
+  const unit  = Number(line?.[priceKey] || 0);
+  const dPct  = Number(line?.discountPercentage || 0);
+  const dAmt  = Number(line?.discountAmount || 0);
+  return Math.max(0, qty * unit * (1 - dPct / 100) - dAmt);
+}
+
+/* keep chart references so we can destroy on reload */
+const chartRegistry = {};
+function mountChart(canvasId, config) {
+  const ctx = document.getElementById(canvasId);
+  if (!ctx) return;
+  if (chartRegistry[canvasId]) chartRegistry[canvasId].destroy();
+  chartRegistry[canvasId] = new Chart(ctx, config);
+}
+
+/* Chart.js dark defaults */
+if (window.Chart) {
+  Chart.defaults.color = '#8b949e';
+  Chart.defaults.borderColor = '#30363d';
+  Chart.defaults.font.family = '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif';
+}
+
+/* ══════════════════════════════════
+   render(data) — main dashboard
+   data = { purchases, sales, inventory }
+══════════════════════════════════ */
+function render(data) {
+  const app = document.getElementById('app');
+  const purchases = data.purchases || [];
+  const sales     = data.sales     || [];
+  const inventory = data.inventory || [];
+
+  if (!purchases.length && !sales.length && !inventory.length) {
+    app.innerHTML = `<div class="empty-state"><div class="big">∅</div><div>No records returned by Manager.io.</div></div>`;
+    return;
+  }
+
+  /* --- Inventory map: UUID → item details --- */
+  const invMap = new Map();
+  inventory.forEach(rec => {
+    const key = rec?.key ?? rec?.id;
+    const it  = rec?.item ?? rec;
+    if (key) invMap.set(key, it || {});
+  });
+
+  /* --- Per-item aggregates from sales + purchases --- */
+  const stats = new Map(); // uuid → { soldQty, soldRevenue, purchasedQty, purchasedCost, salesCount, purchaseCount, lastSale, lastPurchase }
+  const ensureStats = uuid => {
+    if (!stats.has(uuid)) {
+      stats.set(uuid, {
+        uuid, soldQty: 0, soldRevenue: 0, purchasedQty: 0, purchasedCost: 0,
+        salesCount: 0, purchaseCount: 0, lastSale: null, lastPurchase: null
+      });
+    }
+    return stats.get(uuid);
+  };
+
+  /* --- Monthly bucket: YYYY-MM → { sales, purchases, salesCount, purchaseCount } --- */
+  const monthly = new Map();
+  const ensureMonth = key => {
+    if (!monthly.has(key)) monthly.set(key, { sales: 0, purchases: 0, salesCount: 0, purchaseCount: 0 });
+    return monthly.get(key);
+  };
+
+  /* --- Supplier / customer aggregates --- */
+  const suppliers = new Map(); // uuid → { spend, count }
+  const customers = new Map(); // uuid → { revenue, count }
+
+  let totalSales = 0;
+  let totalPurchases = 0;
+  let earliestDate = null;
+  let latestDate   = null;
+
+  /* process sales */
+  sales.forEach(rec => {
+    const it   = rec?.item ?? rec;
+    const date = it?.issueDate || null;
+    const monthKey = date ? String(date).substring(0, 7) : 'unknown';
+    const m = ensureMonth(monthKey);
+    m.salesCount++;
+
+    if (date) {
+      if (!earliestDate || date < earliestDate) earliestDate = date;
+      if (!latestDate   || date > latestDate)   latestDate   = date;
+    }
+
+    const cust = it?.customer;
+    if (cust) {
+      if (!customers.has(cust)) customers.set(cust, { revenue: 0, count: 0 });
+      customers.get(cust).count++;
+    }
+
+    let invoiceTotal = 0;
+    (it?.lines || []).forEach(line => {
+      const tot = computeLineTotal(line, 'salesUnitPrice');
+      invoiceTotal += tot;
+      m.sales += tot;
+
+      const itemId = line?.item;
+      if (itemId) {
+        const s = ensureStats(itemId);
+        s.soldQty     += Number(line?.qty || 0);
+        s.soldRevenue += tot;
+        s.salesCount  += 1;
+        if (date && (!s.lastSale || date > s.lastSale)) s.lastSale = date;
+      }
+    });
+    if (cust) customers.get(cust).revenue += invoiceTotal;
+    totalSales += invoiceTotal;
+  });
+
+  /* process purchases */
+  purchases.forEach(rec => {
+    const it   = rec?.item ?? rec;
+    const date = it?.issueDate || null;
+    const monthKey = date ? String(date).substring(0, 7) : 'unknown';
+    const m = ensureMonth(monthKey);
+    m.purchaseCount++;
+
+    if (date) {
+      if (!earliestDate || date < earliestDate) earliestDate = date;
+      if (!latestDate   || date > latestDate)   latestDate   = date;
+    }
+
+    const supp = it?.supplier;
+    if (supp) {
+      if (!suppliers.has(supp)) suppliers.set(supp, { spend: 0, count: 0 });
+      suppliers.get(supp).count++;
+    }
+
+    let invoiceTotal = 0;
+    (it?.lines || []).forEach(line => {
+      const tot = computeLineTotal(line, 'purchaseUnitPrice');
+      invoiceTotal += tot;
+      m.purchases += tot;
+
+      const itemId = line?.item;
+      if (itemId) {
+        const s = ensureStats(itemId);
+        s.purchasedQty  += Number(line?.qty || 0);
+        s.purchasedCost += tot;
+        s.purchaseCount += 1;
+        if (date && (!s.lastPurchase || date > s.lastPurchase)) s.lastPurchase = date;
+      }
+    });
+    if (supp) suppliers.get(supp).spend += invoiceTotal;
+    totalPurchases += invoiceTotal;
+  });
+
+  const grossMargin = totalSales - totalPurchases;
+  const marginPct   = totalSales > 0 ? (grossMargin / totalSales) * 100 : 0;
+
+  /* derived: months sorted chronologically */
+  const monthKeys = [...monthly.keys()].filter(k => k !== 'unknown').sort();
+  const periodMonths = monthKeys.length || 1;
+
+  /* --- "What to purchase" scoring ---
+     For each item with sales activity, treat (purchasedQty - soldQty) as
+     net flow over the dataset window — negative means we've shipped more
+     than we've bought = stock likely depleting. Combine with average
+     monthly sales velocity to estimate urgency and suggested reorder qty. */
+  const recommendations = [];
+  stats.forEach(s => {
+    if (s.soldQty <= 0) return;
+    const inv = invMap.get(s.uuid) || {};
+    const netFlow = s.purchasedQty - s.soldQty;
+    const monthlyVelocity = s.soldQty / periodMonths;
+    const monthsOfCover = monthlyVelocity > 0 ? netFlow / monthlyVelocity : Infinity;
+
+    let urgency = 'ok';
+    if (netFlow <= 0)                urgency = 'critical';
+    else if (monthsOfCover < 0.5)    urgency = 'critical';
+    else if (monthsOfCover < 1.5)    urgency = 'warn';
+    else if (monthsOfCover < 3)      urgency = 'info';
+    else                             urgency = 'ok';
+
+    if (urgency === 'ok' && !inv.reorderPoint) return;
+
+    const desired = Number(inv.qtyDesired || 0);
+    const targetMonths = 2; // cover ~2 months of sales
+    const suggestedQty = Math.max(
+      desired,
+      Math.ceil(monthlyVelocity * targetMonths - Math.max(0, netFlow))
+    );
+
+    recommendations.push({
+      uuid: s.uuid,
+      name: inv.itemName || inv.nameWithCode || '(unknown item)',
+      unit: inv.unitName || '',
+      soldQty: s.soldQty,
+      purchasedQty: s.purchasedQty,
+      netFlow,
+      monthlyVelocity,
+      monthsOfCover,
+      lastSale: s.lastSale,
+      lastPurchase: s.lastPurchase,
+      urgency,
+      suggestedQty: Math.max(1, suggestedQty),
+      defaultPurchasePrice: Number(inv.defaultPurchaseUnitPrice || 0),
+      estimatedCost: Math.max(1, suggestedQty) * Number(inv.defaultPurchaseUnitPrice || 0)
+    });
+  });
+
+  /* sort: critical first, then by deepest deficit */
+  const urgencyRank = { critical: 0, warn: 1, info: 2, ok: 3 };
+  recommendations.sort((a, b) => {
+    if (urgencyRank[a.urgency] !== urgencyRank[b.urgency]) return urgencyRank[a.urgency] - urgencyRank[b.urgency];
+    return a.monthsOfCover - b.monthsOfCover;
+  });
+
+  /* --- Top sellers / top purchased --- */
+  const itemArr = [...stats.values()].map(s => ({
+    ...s,
+    name: (invMap.get(s.uuid) || {}).itemName || '(unknown)',
+    unit: (invMap.get(s.uuid) || {}).unitName || ''
+  }));
+  const topSellers   = [...itemArr].sort((a, b) => b.soldRevenue   - a.soldRevenue).slice(0, 10);
+  const topPurchased = [...itemArr].sort((a, b) => b.purchasedCost - a.purchasedCost).slice(0, 10);
+
+  /* --- Counts --- */
+  const reorderItemCount = inventory.reduce((n, rec) => n + ((rec?.item ?? rec)?.reorderPoint ? 1 : 0), 0);
+  const inactiveCount    = inventory.reduce((n, rec) => n + ((rec?.item ?? rec)?.inactive ? 1 : 0), 0);
+  const activeItems      = inventory.length - inactiveCount;
+  const criticalCount    = recommendations.filter(r => r.urgency === 'critical').length;
+  const warnCount        = recommendations.filter(r => r.urgency === 'warn').length;
+
+  /* ----- BUILD HTML ----- */
+  app.innerHTML = `
+    <!-- KPI cards -->
+    <div class="section">
+      <div class="section-title">Overview</div>
+      <div class="kpi-grid">
+        <div class="kpi pos">
+          <div class="kpi-label">Total Sales</div>
+          <div class="kpi-value">${fmtNum(totalSales)}</div>
+          <div class="kpi-sub">${fmtInt(sales.length)} invoices</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Total Purchases</div>
+          <div class="kpi-value">${fmtNum(totalPurchases)}</div>
+          <div class="kpi-sub">${fmtInt(purchases.length)} invoices</div>
+        </div>
+        <div class="kpi ${grossMargin >= 0 ? 'pos' : 'neg'}">
+          <div class="kpi-label">Gross Margin</div>
+          <div class="kpi-value">${fmtNum(grossMargin)}</div>
+          <div class="kpi-sub">${marginPct.toFixed(1)}% of sales</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Inventory Items</div>
+          <div class="kpi-value">${fmtInt(activeItems)}</div>
+          <div class="kpi-sub">${fmtInt(inactiveCount)} inactive · ${fmtInt(reorderItemCount)} on reorder</div>
+        </div>
+        <div class="kpi ${criticalCount > 0 ? 'neg' : (warnCount > 0 ? 'warn' : 'pos')}">
+          <div class="kpi-label">Reorder Recommended</div>
+          <div class="kpi-value">${fmtInt(recommendations.length)}</div>
+          <div class="kpi-sub">${fmtInt(criticalCount)} critical · ${fmtInt(warnCount)} soon</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Period</div>
+          <div class="kpi-value" style="font-size:14px">${fmtDate(earliestDate)} → ${fmtDate(latestDate)}</div>
+          <div class="kpi-sub">${fmtInt(periodMonths)} month${periodMonths === 1 ? '' : 's'} of data</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="section">
+      <div class="section-title">Trends</div>
+      <div class="chart-grid">
+        <div class="chart-card full">
+          <div class="chart-title">Sales vs Purchases · Monthly</div>
+          <div class="chart-wrap tall"><canvas id="chart-monthly"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Top 10 Best-Selling Items (by revenue)</div>
+          <div class="chart-wrap"><canvas id="chart-top-sellers"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Top 10 Most-Purchased Items (by spend)</div>
+          <div class="chart-wrap"><canvas id="chart-top-purchased"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Invoice Volume · Monthly</div>
+          <div class="chart-wrap"><canvas id="chart-volume"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Reorder Urgency Distribution</div>
+          <div class="chart-wrap"><canvas id="chart-urgency"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recommendations -->
+    <div class="section">
+      <div class="section-title">What to Purchase Next</div>
+      <div class="table-card scroll-y">
+        ${recommendations.length === 0 ? `
+          <div class="empty-state" style="border:none;background:transparent"><div class="big">✓</div><div>No reorder recommendations — stock levels look healthy.</div></div>
+        ` : `
+          <table>
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th>Status</th>
+                <th class="num">Sold</th>
+                <th class="num">Bought</th>
+                <th class="num">Net Flow</th>
+                <th class="num">Months Cover</th>
+                <th class="num">Avg / Month</th>
+                <th class="num">Suggest Order</th>
+                <th class="num">Est. Cost</th>
+                <th>Last Sale</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${recommendations.slice(0, 200).map(r => `
+                <tr>
+                  <td>${esc(r.name)}${r.unit ? ` <span class="muted">/${esc(r.unit)}</span>` : ''}</td>
+                  <td><span class="badge ${r.urgency}">${({critical:'Critical',warn:'Soon',info:'Watch',ok:'Reorder set'})[r.urgency]}</span></td>
+                  <td class="num">${fmtInt(Math.round(r.soldQty))}</td>
+                  <td class="num">${fmtInt(Math.round(r.purchasedQty))}</td>
+                  <td class="num" style="color:${r.netFlow < 0 ? '#f85149' : '#e6edf3'}">${fmtInt(Math.round(r.netFlow))}</td>
+                  <td class="num">${isFinite(r.monthsOfCover) ? r.monthsOfCover.toFixed(1) : '∞'}</td>
+                  <td class="num">${fmtNum(r.monthlyVelocity)}</td>
+                  <td class="num"><strong>${fmtInt(r.suggestedQty)}</strong></td>
+                  <td class="num">${r.estimatedCost > 0 ? fmtNum(r.estimatedCost) : '<span class="muted">—</span>'}</td>
+                  <td>${fmtDate(r.lastSale)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        `}
+      </div>
+    </div>
+
+    <!-- Top sellers and purchased side by side -->
+    <div class="section">
+      <div class="section-title">Item Performance</div>
+      <div class="chart-grid">
+        <div class="chart-card">
+          <div class="chart-title">Top Sellers — Detail</div>
+          <div class="scroll-y" style="max-height:340px">
+            <table>
+              <thead><tr><th>Item</th><th class="num">Qty</th><th class="num">Revenue</th><th class="num">Invoices</th></tr></thead>
+              <tbody>
+                ${topSellers.length === 0 ? `<tr><td colspan="4" class="muted" style="text-align:center;padding:24px">No sales recorded.</td></tr>` :
+                  topSellers.map(s => `
+                    <tr>
+                      <td>${esc(s.name)}${s.unit ? ` <span class="muted">/${esc(s.unit)}</span>` : ''}</td>
+                      <td class="num">${fmtInt(Math.round(s.soldQty))}</td>
+                      <td class="num">${fmtNum(s.soldRevenue)}</td>
+                      <td class="num">${fmtInt(s.salesCount)}</td>
+                    </tr>
+                  `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Top Purchased — Detail</div>
+          <div class="scroll-y" style="max-height:340px">
+            <table>
+              <thead><tr><th>Item</th><th class="num">Qty</th><th class="num">Spend</th><th class="num">Invoices</th></tr></thead>
+              <tbody>
+                ${topPurchased.length === 0 ? `<tr><td colspan="4" class="muted" style="text-align:center;padding:24px">No purchases recorded.</td></tr>` :
+                  topPurchased.map(s => `
+                    <tr>
+                      <td>${esc(s.name)}${s.unit ? ` <span class="muted">/${esc(s.unit)}</span>` : ''}</td>
+                      <td class="num">${fmtInt(Math.round(s.purchasedQty))}</td>
+                      <td class="num">${fmtNum(s.purchasedCost)}</td>
+                      <td class="num">${fmtInt(s.purchaseCount)}</td>
+                    </tr>
+                  `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  /* ----- BUILD CHARTS ----- */
+  const monthLabels = monthKeys.map(fmtMonth);
+  const salesSeries     = monthKeys.map(k => monthly.get(k).sales);
+  const purchasesSeries = monthKeys.map(k => monthly.get(k).purchases);
+  const salesCountSeries     = monthKeys.map(k => monthly.get(k).salesCount);
+  const purchaseCountSeries  = monthKeys.map(k => monthly.get(k).purchaseCount);
+
+  // Monthly sales vs purchases — line/area chart
+  if (monthKeys.length) {
+    mountChart('chart-monthly', {
+      type: 'line',
+      data: {
+        labels: monthLabels,
+        datasets: [
+          {
+            label: 'Sales',
+            data: salesSeries,
+            borderColor: '#3fb950',
+            backgroundColor: 'rgba(63,185,80,.18)',
+            tension: .3, fill: true, pointRadius: 3, pointHoverRadius: 5
+          },
+          {
+            label: 'Purchases',
+            data: purchasesSeries,
+            borderColor: '#58a6ff',
+            backgroundColor: 'rgba(88,166,255,.15)',
+            tension: .3, fill: true, pointRadius: 3, pointHoverRadius: 5
+          }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'top', labels: { color: '#e6edf3' } },
+          tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${fmtNum(ctx.parsed.y)}` } }
+        },
+        scales: {
+          x: { grid: { color: '#21262d' } },
+          y: { grid: { color: '#21262d' }, ticks: { callback: v => fmtInt(v) } }
+        }
+      }
+    });
+  }
+
+  // Top sellers — horizontal bar
+  if (topSellers.length) {
+    mountChart('chart-top-sellers', {
+      type: 'bar',
+      data: {
+        labels: topSellers.map(s => s.name.length > 24 ? s.name.slice(0, 24) + '…' : s.name),
+        datasets: [{
+          label: 'Revenue',
+          data: topSellers.map(s => s.soldRevenue),
+          backgroundColor: '#3fb950',
+          borderRadius: 4
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: ctx => `Revenue: ${fmtNum(ctx.parsed.x)}` } }
+        },
+        scales: {
+          x: { grid: { color: '#21262d' }, ticks: { callback: v => fmtInt(v) } },
+          y: { grid: { display: false } }
+        }
+      }
+    });
+  }
+
+  // Top purchased — horizontal bar
+  if (topPurchased.length) {
+    mountChart('chart-top-purchased', {
+      type: 'bar',
+      data: {
+        labels: topPurchased.map(s => s.name.length > 24 ? s.name.slice(0, 24) + '…' : s.name),
+        datasets: [{
+          label: 'Spend',
+          data: topPurchased.map(s => s.purchasedCost),
+          backgroundColor: '#58a6ff',
+          borderRadius: 4
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: ctx => `Spend: ${fmtNum(ctx.parsed.x)}` } }
+        },
+        scales: {
+          x: { grid: { color: '#21262d' }, ticks: { callback: v => fmtInt(v) } },
+          y: { grid: { display: false } }
+        }
+      }
+    });
+  }
+
+  // Invoice volume per month
+  if (monthKeys.length) {
+    mountChart('chart-volume', {
+      type: 'bar',
+      data: {
+        labels: monthLabels,
+        datasets: [
+          { label: 'Sales invoices',    data: salesCountSeries,    backgroundColor: '#3fb950', borderRadius: 4 },
+          { label: 'Purchase invoices', data: purchaseCountSeries, backgroundColor: '#58a6ff', borderRadius: 4 }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'top', labels: { color: '#e6edf3' } } },
+        scales: {
+          x: { grid: { color: '#21262d' } },
+          y: { grid: { color: '#21262d' }, ticks: { stepSize: 1 } }
+        }
+      }
+    });
+  }
+
+  // Urgency distribution doughnut
+  const urgencyCounts = {
+    critical: recommendations.filter(r => r.urgency === 'critical').length,
+    warn:     recommendations.filter(r => r.urgency === 'warn').length,
+    info:     recommendations.filter(r => r.urgency === 'info').length,
+    ok:       recommendations.filter(r => r.urgency === 'ok').length
+  };
+  const hasUrgencyData = Object.values(urgencyCounts).some(v => v > 0);
+  if (hasUrgencyData) {
+    mountChart('chart-urgency', {
+      type: 'doughnut',
+      data: {
+        labels: ['Critical', 'Soon', 'Watch', 'Reorder set'],
+        datasets: [{
+          data: [urgencyCounts.critical, urgencyCounts.warn, urgencyCounts.info, urgencyCounts.ok],
+          backgroundColor: ['#f85149', '#d29922', '#58a6ff', '#3fb950'],
+          borderColor: '#0d1117', borderWidth: 2
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'right', labels: { color: '#e6edf3', boxWidth: 12 } } },
+        cutout: '60%'
+      }
+    });
+  } else {
+    const ctx = document.getElementById('chart-urgency');
+    if (ctx) ctx.parentElement.innerHTML = `<div class="empty-state" style="border:none;background:transparent;height:100%;display:flex;flex-direction:column;justify-content:center"><div class="big">✓</div><div>All stock levels healthy.</div></div>`;
+  }
+}
+</script>
+</body>
+</html>
