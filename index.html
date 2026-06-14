@@ -245,6 +245,20 @@ const I18N = {
     'err.hint': 'Make sure this is running inside Manager.io.',
     'err.timeout': 'Timeout — is this running inside Manager.io?',
     'section.overview': 'Overview',
+    'section.shortage': 'Shortage Forecast — Next 30 Days',
+    'shortage.banner': 'Projections use a rolling 30-day sales velocity. Stock is estimated from purchases − sales across all loaded history; if your data predates this system, the estimate may be low.',
+    'kpi.shortageRisk': 'Shortage Risk',
+    'kpi.shortageRiskSub': '{0} out of stock',
+    'chart.runway': 'Days Until Stockout — Top 15 At Risk',
+    'th.velocity': '30d / Day',
+    'th.estStock': 'Est. Stock',
+    'th.runway': 'Days Runway',
+    'th.soldMTD': 'Sold MTD',
+    'th.daysLeft': 'Days Left',
+    'th.projDemand': 'Projected',
+    'th.projShortage': 'Shortage',
+    'badge.out': 'Out',
+    'empty.noShortage': 'No shortage risks detected — stock looks healthy for the next 30 days.',
     'section.trends': 'Trends & Cash Flow',
     'section.items': 'Item Performance',
     'section.partners': 'Customers & Suppliers',
@@ -357,6 +371,20 @@ const I18N = {
     'err.hint': 'تأكد من تشغيل هذا داخل Manager.io.',
     'err.timeout': 'انتهت المهلة — هل يعمل هذا داخل Manager.io؟',
     'section.overview': 'نظرة عامة',
+    'section.shortage': 'توقع النفاد — خلال 30 يوماً',
+    'shortage.banner': 'التوقعات تعتمد على معدل المبيعات في آخر 30 يوماً. المخزون التقديري محسوب من (المشتريات − المبيعات) لكامل البيانات المحمّلة؛ قد يكون أقل من الواقع إذا كانت بياناتك أقدم من النظام.',
+    'kpi.shortageRisk': 'مخاطر النفاد',
+    'kpi.shortageRiskSub': '{0} نفدت بالفعل',
+    'chart.runway': 'أيام حتى النفاد — أكثر 15 صنف عرضة',
+    'th.velocity': 'يومي (30ي)',
+    'th.estStock': 'المخزون التقديري',
+    'th.runway': 'أيام التغطية',
+    'th.soldMTD': 'مبيع الشهر',
+    'th.daysLeft': 'باقي الشهر',
+    'th.projDemand': 'الطلب المتوقع',
+    'th.projShortage': 'النقص المتوقع',
+    'badge.out': 'نفد',
+    'empty.noShortage': 'لا توجد مخاطر نفاد — المخزون يبدو كافياً للـ30 يوماً القادمة.',
     'section.trends': 'الاتجاهات والتدفق النقدي',
     'section.items': 'أداء الأصناف',
     'section.partners': 'العملاء والموردون',
@@ -922,6 +950,74 @@ function render(data) {
   const avgSale          = ctx.sales.length ? totals.sales / ctx.sales.length : 0;
   const avgPurchase      = ctx.purchases.length ? totals.purchases / ctx.purchases.length : 0;
 
+  /* ══════════════════════════════════
+     Shortage forecast (rolling 30-day velocity + mid-month projection)
+     ────────────────────────────────────
+     For each item with recent sales: take last 30 days of sold qty,
+     divide by 30 to get daily velocity, then compare against an
+     estimated current stock (cumulative purchased − sold) to project
+     when we'll run out and how much we'll be short by month end.
+  ══════════════════════════════════ */
+  const refDate = ctx.latestDate ? new Date(ctx.latestDate) : new Date(ctx.earliestDate || '2026-01-01');
+  const thirtyDaysAgo = new Date(refDate.getTime() - 30 * 86400000);
+  const monthStart    = new Date(refDate.getFullYear(), refDate.getMonth(), 1);
+  const monthEndDay   = new Date(refDate.getFullYear(), refDate.getMonth() + 1, 0).getDate();
+  const daysLeftInMonth = Math.max(0, monthEndDay - refDate.getDate());
+
+  /* per-item windowed sales: last 30 days + month-to-date */
+  const recentByItem = new Map();
+  const bumpRecent = (uuid, qty, isRecent30, isMTD) => {
+    if (!recentByItem.has(uuid)) recentByItem.set(uuid, { qty30: 0, qtyMTD: 0 });
+    const r = recentByItem.get(uuid);
+    if (isRecent30) r.qty30 += qty;
+    if (isMTD)      r.qtyMTD += qty;
+  };
+  ctx.sales.forEach(rec => {
+    const it = rec?.item ?? rec;
+    const d  = it?.issueDate ? new Date(it.issueDate) : null;
+    if (!d || isNaN(d)) return;
+    const inRecent30 = d >= thirtyDaysAgo && d <= refDate;
+    const inMTD      = d >= monthStart    && d <= refDate;
+    if (!inRecent30 && !inMTD) return;
+    (it?.lines || []).forEach(line => {
+      if (line?.item) bumpRecent(line.item, Number(line?.qty || 0), inRecent30, inMTD);
+    });
+  });
+
+  const shortageRows = [];
+  stats.forEach(s => {
+    if (s.soldQty <= 0) return;
+    const r = recentByItem.get(s.uuid) || { qty30: 0, qtyMTD: 0 };
+    if (r.qty30 <= 0 && r.qtyMTD <= 0) return; // no recent activity → not actionable
+    const inv = invMap.get(s.uuid) || {};
+    const dailyVelocity = r.qty30 / 30;
+    const estStock = s.purchasedQty - s.soldQty;
+    const daysRunway = dailyVelocity > 0 ? estStock / dailyVelocity : (estStock > 0 ? Infinity : 0);
+    const projDemand = dailyVelocity * daysLeftInMonth;
+    const projShortage = Math.max(0, projDemand - Math.max(0, estStock));
+
+    let urgency = null, label = null;
+    if (estStock <= 0)            { urgency = 'critical'; label = t('badge.out'); }
+    else if (daysRunway < 7)      { urgency = 'critical'; label = t('badge.critical'); }
+    else if (daysRunway < 14)     { urgency = 'warn';     label = t('badge.warn'); }
+    else if (daysRunway < 30)     { urgency = 'info';     label = t('badge.info'); }
+    else return; // healthy — skip
+
+    shortageRows.push({
+      uuid: s.uuid,
+      name: inv.itemName || t('item.unknown'),
+      unit: inv.unitName || '',
+      qty30: r.qty30, qtyMTD: r.qtyMTD,
+      dailyVelocity, estStock, daysRunway,
+      projDemand, projShortage,
+      urgency, label
+    });
+  });
+  shortageRows.sort((a, b) => a.daysRunway - b.daysRunway);
+
+  const outOfStockCount  = shortageRows.filter(r => r.estStock <= 0).length;
+  const shortageRiskCount = shortageRows.length;
+
   const monthsWord = periodMonths === 1 ? t('kpi.month') : t('kpi.months');
 
   /* ----- HTML ----- */
@@ -975,11 +1071,71 @@ function render(data) {
           <div class="kpi-value">${fmtInt(recommendations.length)}</div>
           <div class="kpi-sub">${esc(t('kpi.criticalSoon', fmtInt(criticalCount), fmtInt(warnCount)))}</div>
         </div>
+        <div class="kpi ${outOfStockCount > 0 ? 'neg' : (shortageRiskCount > 0 ? 'warn' : 'pos')}">
+          <div class="kpi-label">${esc(t('kpi.shortageRisk'))}</div>
+          <div class="kpi-value">${fmtInt(shortageRiskCount)}</div>
+          <div class="kpi-sub">${esc(t('kpi.shortageRiskSub', fmtInt(outOfStockCount)))}</div>
+        </div>
         <div class="kpi">
           <div class="kpi-label">${esc(t('kpi.period'))}</div>
           <div class="kpi-value" style="font-size:14px">${esc(fmtDate(ctx.earliestDate))} → ${esc(fmtDate(ctx.latestDate))}</div>
           <div class="kpi-sub">${esc(t('kpi.monthsData', fmtInt(periodMonths), monthsWord))}</div>
         </div>
+      </div>
+    </div>
+
+    <!-- SHORTAGE FORECAST -->
+    <div class="section">
+      <div class="section-title">${esc(t('section.shortage'))}</div>
+      <div style="font-size:11.5px;color:#8b949e;background:#161b22;border:1px solid #30363d;border-radius:8px;padding:9px 14px;margin-bottom:12px">
+        ${esc(t('shortage.banner'))}
+      </div>
+      <div class="chart-grid" style="grid-template-columns:minmax(380px,2fr) minmax(540px,3fr)">
+        <div class="chart-card">
+          <div class="chart-title"><span>${esc(t('chart.runway'))}</span></div>
+          <div class="chart-wrap tall">
+            ${shortageRows.length === 0
+              ? `<div class="empty-state" style="border:none;background:transparent;height:100%;display:flex;flex-direction:column;justify-content:center"><div class="big">✓</div><div>${esc(t('empty.noShortage'))}</div></div>`
+              : `<canvas id="chart-runway"></canvas>`}
+          </div>
+        </div>
+        <div class="table-card scroll-y" style="max-height:380px">
+          ${shortageRows.length === 0 ? `
+            <div class="empty-state" style="border:none;background:transparent"><div class="big">✓</div><div>${esc(t('empty.noShortage'))}</div></div>
+          ` : `
+            <table>
+              <thead>
+                <tr>
+                  <th>${esc(t('th.item'))}</th>
+                  <th>${esc(t('th.status'))}</th>
+                  <th class="num">${esc(t('th.velocity'))}</th>
+                  <th class="num">${esc(t('th.estStock'))}</th>
+                  <th class="num">${esc(t('th.runway'))}</th>
+                  <th class="num">${esc(t('th.soldMTD'))}</th>
+                  <th class="num">${esc(t('th.projDemand'))}</th>
+                  <th class="num">${esc(t('th.projShortage'))}</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${shortageRows.slice(0, 200).map(r => `
+                  <tr>
+                    <td>${esc(r.name)}${r.unit ? ` <span class="muted">/${esc(r.unit)}</span>` : ''}</td>
+                    <td><span class="badge ${r.urgency}">${esc(r.label)}</span></td>
+                    <td class="num">${fmtNum(r.dailyVelocity)}</td>
+                    <td class="num" style="color:${r.estStock <= 0 ? '#f85149' : '#e6edf3'}">${fmtInt(Math.round(r.estStock))}</td>
+                    <td class="num" style="color:${r.daysRunway < 7 ? '#f85149' : (r.daysRunway < 14 ? '#d29922' : '#e6edf3')}">${isFinite(r.daysRunway) ? r.daysRunway.toFixed(1) : '∞'}</td>
+                    <td class="num">${fmtInt(Math.round(r.qtyMTD))}</td>
+                    <td class="num">${fmtInt(Math.round(r.projDemand))}</td>
+                    <td class="num"><strong style="color:${r.projShortage > 0 ? '#f85149' : '#e6edf3'}">${fmtInt(Math.ceil(r.projShortage))}</strong></td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          `}
+        </div>
+      </div>
+      <div style="font-size:11px;color:#6e7681;margin-top:8px;text-align:end">
+        ${esc(fmtDate(refDate))} · ${daysLeftInMonth} ${esc(t('th.daysLeft'))}
       </div>
     </div>
 
@@ -1487,6 +1643,40 @@ function render(data) {
         },
         scales: {
           x: { grid: { color: '#21262d' }, ticks: { callback: v => fmtInt(v) }, position: xPos() },
+          y: { grid: { display: false }, position: yPos() }
+        }
+      }
+    });
+  }
+
+  /* Runway chart — top 15 at risk */
+  if (shortageRows.length) {
+    const top = shortageRows.slice(0, 15);
+    const urgencyColor = { critical: '#f85149', warn: '#d29922', info: '#58a6ff', ok: '#3fb950' };
+    mountChart('chart-runway', {
+      type: 'bar',
+      data: {
+        labels: top.map(r => truncate(r.name, 26)),
+        datasets: [{
+          label: t('th.runway'),
+          data: top.map(r => isFinite(r.daysRunway) ? Math.max(0, r.daysRunway) : 30),
+          backgroundColor: top.map(r => urgencyColor[r.urgency] || '#6e7681'),
+          borderRadius: 4
+        }]
+      },
+      options: {
+        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: {
+            label: ctx => {
+              const r = top[ctx.dataIndex];
+              return `${r.label}: ${isFinite(r.daysRunway) ? r.daysRunway.toFixed(1) + ' d' : '∞'} · stock ${fmtInt(Math.round(r.estStock))}`;
+            }
+          } }
+        },
+        scales: {
+          x: { grid: { color: '#21262d' }, ticks: { callback: v => v + 'd' }, position: xPos(), suggestedMax: 30 },
           y: { grid: { display: false }, position: yPos() }
         }
       }
