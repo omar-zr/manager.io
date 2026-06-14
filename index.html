@@ -255,6 +255,7 @@ const I18N = {
     'err.hint': 'Make sure this is running inside Manager.io.',
     'err.timeout': 'Timeout — is this running inside Manager.io?',
     'section.overview': 'Overview',
+    'amounts.baseCurrency': 'amounts converted to base currency via invoice exchange rates',
     'section.shortage': 'Shortage Forecast — Next 30 Days',
     'shortage.banner': 'Forecast = what you sold (net of returns) in the last 30 days, assumed to repeat. Stock = purchases + production − sales − write-offs − BOM consumption, across all loaded history; if data predates this system the estimate may be low.',
     'kpi.shortageRisk': 'Shortage Risk',
@@ -381,6 +382,7 @@ const I18N = {
     'err.hint': 'تأكد من تشغيل هذا داخل Manager.io.',
     'err.timeout': 'انتهت المهلة — هل يعمل هذا داخل Manager.io؟',
     'section.overview': 'نظرة عامة',
+    'amounts.baseCurrency': 'المبالغ محوّلة للعملة الأساسية حسب أسعار الصرف بالفواتير',
     'section.shortage': 'توقع النفاد — خلال 30 يوماً',
     'shortage.banner': 'التوقع = صافي المبيعات (بعد المرتجعات) في آخر 30 يوماً، مع افتراض تكراره. المخزون = المشتريات + الإنتاج − المبيعات − الإلغاءات − مواد الإنتاج، عبر كامل البيانات المحمّلة؛ قد يكون أقل من الواقع إذا كانت بياناتك أقدم من النظام.',
     'kpi.shortageRisk': 'مخاطر النفاد',
@@ -526,12 +528,21 @@ const dowLabels = () => {
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[c]);
 const truncate = (s, n) => { s = String(s ?? ''); return s.length > n ? s.slice(0, n) + '…' : s; };
 
-function computeLineTotal(line, priceKey) {
+function computeLineTotal(line, priceKey, fx) {
   const qty   = Number(line?.qty || 0);
   const unit  = Number(line?.[priceKey] || 0);
   const dPct  = Number(line?.discountPercentage || 0);
   const dAmt  = Number(line?.discountAmount || 0);
-  return Math.max(0, qty * unit * (1 - dPct / 100) - dAmt);
+  const raw   = Math.max(0, qty * unit * (1 - dPct / 100) - dAmt);
+  return raw * (fx == null ? 1 : fx);
+}
+
+/* Foreign-currency invoices carry exchangeRate; exchangeRate=0 means base currency (no conversion).
+   When exchangeRateIsInverse is true the rate is foreign-per-base, so we divide; otherwise multiply. */
+function fxFactor(invoice) {
+  const xr = Number(invoice?.exchangeRate || 0);
+  if (!xr) return 1;
+  return invoice?.exchangeRateIsInverse ? (1 / xr) : xr;
 }
 
 /* chart instance registry */
@@ -735,6 +746,7 @@ function processData(data) {
     const date = it?.issueDate || null;
     const monthKey = date ? String(date).substring(0, 7) : 'unknown';
     const m = ensureMonth(monthKey);
+    const fx = fxFactor(it);
     m.salesCount++;
 
     if (date) {
@@ -753,7 +765,7 @@ function processData(data) {
 
     let invoiceTotal = 0;
     (it?.lines || []).forEach(line => {
-      const tot = computeLineTotal(line, 'salesUnitPrice');
+      const tot = computeLineTotal(line, 'salesUnitPrice', fx);
       invoiceTotal += tot;
       m.sales += tot;
       if (date) {
@@ -780,6 +792,7 @@ function processData(data) {
     const date = it?.issueDate || null;
     const monthKey = date ? String(date).substring(0, 7) : 'unknown';
     const m = ensureMonth(monthKey);
+    const fx = fxFactor(it);
     m.purchaseCount++;
 
     if (date) {
@@ -798,7 +811,7 @@ function processData(data) {
 
     let invoiceTotal = 0;
     (it?.lines || []).forEach(line => {
-      const tot = computeLineTotal(line, 'purchaseUnitPrice');
+      const tot = computeLineTotal(line, 'purchaseUnitPrice', fx);
       invoiceTotal += tot;
       m.purchases += tot;
       if (date) {
@@ -825,12 +838,13 @@ function processData(data) {
     const date = it?.issueDate || null;
     const monthKey = date ? String(date).substring(0, 7) : 'unknown';
     const m = ensureMonth(monthKey);
+    const fx = fxFactor(it);
 
     const cust = it?.customer;
 
     let returnTotal = 0;
     (it?.lines || []).forEach(line => {
-      const tot = computeLineTotal(line, 'salesUnitPrice');
+      const tot = computeLineTotal(line, 'salesUnitPrice', fx);
       returnTotal += tot;
       m.sales -= tot;
 
@@ -851,12 +865,13 @@ function processData(data) {
     const date = it?.issueDate || null;
     const monthKey = date ? String(date).substring(0, 7) : 'unknown';
     const m = ensureMonth(monthKey);
+    const fx = fxFactor(it);
 
     const supp = it?.supplier;
 
     let returnTotal = 0;
     (it?.lines || []).forEach(line => {
-      const tot = computeLineTotal(line, 'purchaseUnitPrice');
+      const tot = computeLineTotal(line, 'purchaseUnitPrice', fx);
       returnTotal += tot;
       m.purchases -= tot;
 
@@ -1134,7 +1149,7 @@ function render(data) {
   app.innerHTML = `
     <!-- KPI ROW -->
     <div class="section">
-      <div class="section-title">${esc(t('section.overview'))}</div>
+      <div class="section-title">${esc(t('section.overview'))} <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#6e7681">· ${esc(t('amounts.baseCurrency'))}</span></div>
       <div class="kpi-grid">
         <div class="kpi pos">
           <div class="kpi-label">${esc(t('kpi.totalSales'))}</div>
