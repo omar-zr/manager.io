@@ -222,6 +222,8 @@ async function getSalesInvoiceBatch(onProgress)    { return fetchBatch('/api4/sa
 async function getInventoryItemBatch(onProgress)   { return fetchBatch('/api4/inventory-item-batch',   onProgress); }
 async function getCustomerBatch(onProgress)        { return fetchBatch('/api4/customer-batch',        onProgress); }
 async function getSupplierBatch(onProgress)        { return fetchBatch('/api4/supplier-batch',        onProgress); }
+async function getCreditNoteBatch(onProgress)      { return fetchBatch('/api4/credit-note-batch',     onProgress); }
+async function getDebitNoteBatch(onProgress)       { return fetchBatch('/api4/debit-note-batch',      onProgress); }
 
 /* ══════════════════════════════════
    i18n — English + Arabic
@@ -233,7 +235,7 @@ const I18N = {
     'btn.reload': '↺ Reload',
     'btn.retry': '↺ Retry',
     'status.idle': 'Press Load to fetch data from Manager',
-    'status.complete': '✓ {0} purchases · {1} sales · {2} items · {3} customers · {4} suppliers',
+    'status.complete': '✓ {0} purchases · {1} sales · {2} returns · {3} items · {4} customers · {5} suppliers',
     'status.page': '[{0}/{1}] {2} · {3} loaded (p{4})',
     'status.pageTotal': '[{0}/{1}] {2} · {3}/{4} (p{5})',
     'stage.purchases': 'purchase invoices',
@@ -241,6 +243,8 @@ const I18N = {
     'stage.inventory': 'inventory items',
     'stage.customers': 'customers',
     'stage.suppliers': 'suppliers',
+    'stage.creditNotes': 'sales returns',
+    'stage.debitNotes': 'purchase returns',
     'err.title': 'Failed to load data',
     'err.hint': 'Make sure this is running inside Manager.io.',
     'err.timeout': 'Timeout — is this running inside Manager.io?',
@@ -354,7 +358,7 @@ const I18N = {
     'btn.reload': '↺ إعادة تحميل',
     'btn.retry': '↺ إعادة المحاولة',
     'status.idle': 'اضغط على "تحميل" لجلب البيانات من Manager',
-    'status.complete': '✓ {0} مشتريات · {1} مبيعات · {2} أصناف · {3} عملاء · {4} موردين',
+    'status.complete': '✓ {0} مشتريات · {1} مبيعات · {2} مرتجعات · {3} أصناف · {4} عملاء · {5} موردين',
     'status.page': '[{0}/{1}] {2} · تم تحميل {3} (صفحة {4})',
     'status.pageTotal': '[{0}/{1}] {2} · {3}/{4} (صفحة {5})',
     'stage.purchases': 'فواتير الشراء',
@@ -362,6 +366,8 @@ const I18N = {
     'stage.inventory': 'أصناف المخزون',
     'stage.customers': 'العملاء',
     'stage.suppliers': 'الموردون',
+    'stage.creditNotes': 'مرتجعات المبيعات',
+    'stage.debitNotes': 'مرتجعات المشتريات',
     'err.title': 'فشل تحميل البيانات',
     'err.hint': 'تأكد من تشغيل هذا داخل Manager.io.',
     'err.timeout': 'انتهت المهلة — هل يعمل هذا داخل Manager.io؟',
@@ -582,11 +588,13 @@ async function loadAllRecords() {
   app.innerHTML = '';
 
   const stages = [
-    { name: 'purchases',    labelKey: 'stage.purchases', fn: getPurchaseInvoiceBatch },
-    { name: 'sales',        labelKey: 'stage.sales',     fn: getSalesInvoiceBatch    },
-    { name: 'inventory',    labelKey: 'stage.inventory', fn: getInventoryItemBatch   },
-    { name: 'customerList', labelKey: 'stage.customers', fn: getCustomerBatch        },
-    { name: 'supplierList', labelKey: 'stage.suppliers', fn: getSupplierBatch        }
+    { name: 'purchases',    labelKey: 'stage.purchases',   fn: getPurchaseInvoiceBatch },
+    { name: 'sales',        labelKey: 'stage.sales',       fn: getSalesInvoiceBatch    },
+    { name: 'creditNotes',  labelKey: 'stage.creditNotes', fn: getCreditNoteBatch      },
+    { name: 'debitNotes',   labelKey: 'stage.debitNotes',  fn: getDebitNoteBatch       },
+    { name: 'inventory',    labelKey: 'stage.inventory',   fn: getInventoryItemBatch   },
+    { name: 'customerList', labelKey: 'stage.customers',   fn: getCustomerBatch        },
+    { name: 'supplierList', labelKey: 'stage.suppliers',   fn: getSupplierBatch        }
   ];
 
   const result = {};
@@ -608,6 +616,7 @@ async function loadAllRecords() {
     status.textContent = t('status.complete',
       fmtInt(result.purchases.length),
       fmtInt(result.sales.length),
+      fmtInt(((result.creditNotes || []).length) + ((result.debitNotes || []).length)),
       fmtInt(result.inventory.length),
       fmtInt((result.customerList || []).length),
       fmtInt((result.supplierList || []).length)
@@ -635,6 +644,8 @@ async function loadAllRecords() {
 function processData(data) {
   const purchases     = data.purchases     || [];
   const sales         = data.sales         || [];
+  const creditNotes   = data.creditNotes   || [];   // sales returns
+  const debitNotes    = data.debitNotes    || [];   // purchase returns
   const inventory     = data.inventory     || [];
   const customerList  = data.customerList  || [];
   const supplierList  = data.supplierList  || [];
@@ -782,8 +793,60 @@ function processData(data) {
     totalPurchases += invoiceTotal;
   });
 
+  /* credit notes — sales returns: reverse soldQty/revenue/customer revenue */
+  creditNotes.forEach(rec => {
+    const it   = rec?.item ?? rec;
+    const date = it?.issueDate || null;
+    const monthKey = date ? String(date).substring(0, 7) : 'unknown';
+    const m = ensureMonth(monthKey);
+
+    const cust = it?.customer;
+
+    let returnTotal = 0;
+    (it?.lines || []).forEach(line => {
+      const tot = computeLineTotal(line, 'salesUnitPrice');
+      returnTotal += tot;
+      m.sales -= tot;
+
+      const itemId = line?.item;
+      if (itemId) {
+        const s = ensureStats(itemId);
+        s.soldQty     -= Number(line?.qty || 0);
+        s.soldRevenue -= tot;
+      }
+    });
+    if (cust && customers.has(cust)) customers.get(cust).revenue -= returnTotal;
+    totalSales -= returnTotal;
+  });
+
+  /* debit notes — purchase returns: reverse purchasedQty/cost/supplier spend */
+  debitNotes.forEach(rec => {
+    const it   = rec?.item ?? rec;
+    const date = it?.issueDate || null;
+    const monthKey = date ? String(date).substring(0, 7) : 'unknown';
+    const m = ensureMonth(monthKey);
+
+    const supp = it?.supplier;
+
+    let returnTotal = 0;
+    (it?.lines || []).forEach(line => {
+      const tot = computeLineTotal(line, 'purchaseUnitPrice');
+      returnTotal += tot;
+      m.purchases -= tot;
+
+      const itemId = line?.item;
+      if (itemId) {
+        const s = ensureStats(itemId);
+        s.purchasedQty  -= Number(line?.qty || 0);
+        s.purchasedCost -= tot;
+      }
+    });
+    if (supp && suppliers.has(supp)) suppliers.get(supp).spend -= returnTotal;
+    totalPurchases -= returnTotal;
+  });
+
   return {
-    purchases, sales, inventory, customerList, supplierList,
+    purchases, sales, creditNotes, debitNotes, inventory, customerList, supplierList,
     invMap, customerNames, supplierNames,
     stats, monthly, suppliers, customers, dow,
     totals: {
@@ -951,14 +1014,16 @@ function render(data) {
   const thirtyDaysAgo = new Date(refDate.getTime() - 30 * 86400000);
 
   const last30ByItem = new Map();
-  ctx.sales.forEach(rec => {
+  const accumulate30 = (rec, sign) => {
     const it = rec?.item ?? rec;
     const d  = it?.issueDate ? new Date(it.issueDate) : null;
     if (!d || isNaN(d) || d < thirtyDaysAgo || d > refDate) return;
     (it?.lines || []).forEach(line => {
-      if (line?.item) last30ByItem.set(line.item, (last30ByItem.get(line.item) || 0) + Number(line?.qty || 0));
+      if (line?.item) last30ByItem.set(line.item, (last30ByItem.get(line.item) || 0) + sign * Number(line?.qty || 0));
     });
-  });
+  };
+  ctx.sales.forEach(r => accumulate30(r, +1));
+  (ctx.creditNotes || []).forEach(r => accumulate30(r, -1));  // returns reduce net demand
 
   const shortageRows = [];
   stats.forEach(s => {
